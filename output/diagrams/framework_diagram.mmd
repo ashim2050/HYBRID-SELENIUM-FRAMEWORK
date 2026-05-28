@@ -1,0 +1,33 @@
+flowchart TD
+  subgraph Workspace
+    A["Input / Excel files"] --> B["DynamicSuiteListener"]
+    B --> C["JsonConverter / output/testdata"]
+    C --> D["TestNG Dynamic Suite"]
+    D --> E["Runner / TestNG"]
+  end
+
+  subgraph Tests
+    E --> F["UI Tests (extend BaseTest)"]
+    E --> G["API Tests (ApiDataDrivenTests)"]
+  end
+
+  subgraph Core
+    F --> H["BaseTest"]
+    H --> I["DriverManager"]
+    G --> J["RestAssured + Request/Response Specs"]
+    H --> K["ConfigReader"]
+    G --> K
+    I --> K
+  end
+
+  subgraph Reporting
+    E --> L["TestListener"]
+    L --> M["ExtentReports -> output/reports/"]
+  end
+
+  subgraph Utils
+    B --> U1[ExcelReader]
+    B --> U2[TestNGXmlGenerator]
+    C --> U3[JsonConverter]
+    E --> U4[DataProviderUtil]
+  end

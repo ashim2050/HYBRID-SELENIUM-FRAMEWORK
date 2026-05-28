@@ -1,0 +1,15 @@
+# Maven
+/target/
+
+# Eclipse/IntelliJ
+/.idea/
+*.iml
+
+# VSCode
+.vscode/
+
+# Test output
+/test-output/
+
+# Logs
+*.log

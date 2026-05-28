@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30">
+
+    <Properties>
+        <Property name="LOG_DIR">output/logs</Property>
+        <Property name="LOG_FILE_PREFIX">hybrid-framework</Property>
+    </Properties>
+
+    <Appenders>
+
+        <!-- Console - coloured output -->
+        <Console name="ConsoleAppender" target="SYSTEM_OUT">
+            <PatternLayout
+                pattern="%style{%d{HH:mm:ss.SSS}}{cyan} %highlight{%level}{FATAL=red blink, ERROR=red, WARN=yellow bold, INFO=green, DEBUG=blue} %msg%n"/>
+        </Console>
+
+        <!-- Rolling file - keeps last 10 days, max 10 MB per file -->
+        <RollingFile name="FileAppender"
+                     fileName="${LOG_DIR}/${LOG_FILE_PREFIX}.log"
+                     filePattern="${LOG_DIR}/${LOG_FILE_PREFIX}-%d{yyyy-MM-dd}.%i.log.gz">
+            <PatternLayout>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t] %c{1}:%L - %msg%n%throwable</pattern>
+            </PatternLayout>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+
+    </Appenders>
+
+    <Loggers>
+        <!-- Framework packages - DEBUG level -->
+        <Logger name="com.framework" level="DEBUG" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+            <AppenderRef ref="FileAppender"/>
+        </Logger>
+
+        <!-- Silence noisy third-party libraries -->
+        <Logger name="org.openqa.selenium" level="WARN" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Logger>
+        <Logger name="io.github.bonigarcia" level="WARN" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Logger>
+        <Logger name="org.apache.poi" level="WARN" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Logger>
+        <Logger name="com.aventstack" level="WARN" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Logger>
+
+        <!-- Root logger -->
+        <Root level="INFO">
+            <AppenderRef ref="ConsoleAppender"/>
+            <AppenderRef ref="FileAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

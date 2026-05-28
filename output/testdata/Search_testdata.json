@@ -1,0 +1,19 @@
+[ {
+  "TestCaseID" : "TC_SRC_001",
+  "TestMethodName" : "testKeywordSearch",
+  "Description" : "Search for Selenium",
+  "ExecutionFlag" : "Yes",
+  "Browser" : "chrome",
+  "URL" : "https://www.google.com",
+  "SearchKeyword" : "Selenium WebDriver",
+  "ExpectedResult" : "Selenium"
+}, {
+  "TestCaseID" : "TC_SRC_002",
+  "TestMethodName" : "testKeywordSearch",
+  "Description" : "Search for Java",
+  "ExecutionFlag" : "Yes",
+  "Browser" : "chrome",
+  "URL" : "https://www.google.com",
+  "SearchKeyword" : "Java programming language",
+  "ExpectedResult" : "Java"
+} ]

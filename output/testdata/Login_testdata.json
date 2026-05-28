@@ -1,0 +1,45 @@
+[ {
+  "TestCaseID" : "TC_LGN_001",
+  "TestMethodName" : "testValidLogin",
+  "Description" : "Login with valid credentials",
+  "ExecutionFlag" : "Yes",
+  "Browser" : "chrome",
+  "URL" : "https://the-internet.herokuapp.com/login",
+  "Username" : "tomsmith",
+  "Password" : "SuperSecretPassword!",
+  "ExpectedTitle" : "Secure Area",
+  "ExpectedError" : ""
+}, {
+  "TestCaseID" : "TC_LGN_002",
+  "TestMethodName" : "testInvalidLogin",
+  "Description" : "Login with wrong password",
+  "ExecutionFlag" : "Yes",
+  "Browser" : "chrome",
+  "URL" : "https://the-internet.herokuapp.com/login",
+  "Username" : "tomsmith",
+  "Password" : "wrongpassword",
+  "ExpectedTitle" : "",
+  "ExpectedError" : "Your password is invalid!"
+}, {
+  "TestCaseID" : "TC_LGN_003",
+  "TestMethodName" : "testInvalidLogin",
+  "Description" : "Login with unknown username",
+  "ExecutionFlag" : "Yes",
+  "Browser" : "chrome",
+  "URL" : "https://the-internet.herokuapp.com/login",
+  "Username" : "unknown",
+  "Password" : "anypassword",
+  "ExpectedTitle" : "",
+  "ExpectedError" : "Your username is invalid!"
+}, {
+  "TestCaseID" : "TC_LGN_004",
+  "TestMethodName" : "testValidLogin",
+  "Description" : "Login – skip this case",
+  "ExecutionFlag" : "No",
+  "Browser" : "chrome",
+  "URL" : "https://the-internet.herokuapp.com/login",
+  "Username" : "admin",
+  "Password" : "admin",
+  "ExpectedTitle" : "Secure Area",
+  "ExpectedError" : ""
+} ]

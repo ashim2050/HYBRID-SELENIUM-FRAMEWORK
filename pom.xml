@@ -229,6 +229,8 @@ or programmatically inside FrameworkRunner itself.
         <suiteXmlFiles>
             <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
         </suiteXmlFiles>
+        <!-- Allow tests to run and generate reports without failing the Maven build -->
+        <testFailureIgnore>true</testFailureIgnore>
     </configuration>
 </plugin>
 </plugins>

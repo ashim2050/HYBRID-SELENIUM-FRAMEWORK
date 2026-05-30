@@ -79,8 +79,25 @@ public class ConfigReader {
     }
 
    public static boolean isHeadless() {
-    return Boolean.parseBoolean(get("headless", "false"));
-}
+        // Auto-detect Jenkins environment and force headless mode
+        if (isRunningUnderJenkins()) {
+            logger.info("Running under Jenkins - forcing headless mode");
+            return true;
+        }
+        return Boolean.parseBoolean(get("headless", "false"));
+    }
+
+    /**
+     * Detects if the code is running under a Jenkins CI/CD environment.
+     * Checks for common Jenkins environment variables.
+     */
+    private static boolean isRunningUnderJenkins() {
+        return System.getenv("JENKINS_HOME") != null 
+            || System.getenv("BUILD_ID") != null 
+            || System.getenv("BUILD_NUMBER") != null
+            || System.getenv("JENKINS_URL") != null
+            || System.getenv("CI") != null && "jenkins".equalsIgnoreCase(System.getenv("CI_SYSTEM"));
+    }
 
 public static String getBaseUrl() {
     return get("base.url", "https://the-internet.herokuapp.com");

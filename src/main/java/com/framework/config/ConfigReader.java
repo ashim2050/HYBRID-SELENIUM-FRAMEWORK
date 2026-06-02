@@ -79,9 +79,17 @@ public class ConfigReader {
     }
 
    public static boolean isHeadless() {
-        // Auto-detect Jenkins environment and force headless mode
+        // Check system property override first (allows -Dheadless=true/false from Jenkins)
+        String systemProperty = System.getProperty("headless");
+        if (systemProperty != null) {
+            boolean headlessValue = Boolean.parseBoolean(systemProperty);
+            logger.info("Using headless mode from system property: " + headlessValue);
+            return headlessValue;
+        }
+        
+        // Auto-detect Jenkins environment and force headless mode (if no override)
         if (isRunningUnderJenkins()) {
-            logger.info("Running under Jenkins - forcing headless mode");
+            logger.info("Running under Jenkins - forcing headless mode (set -Dheadless=false to override)");
             return true;
         }
         return Boolean.parseBoolean(get("headless", "false"));

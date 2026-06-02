@@ -79,7 +79,7 @@ pipeline {
                             echo "========== RUNNING API TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
                             '''
                         }
                     }
@@ -104,7 +104,7 @@ pipeline {
                             echo "========== RUNNING LOGIN TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
                             '''
                         }
                     }
@@ -129,7 +129,7 @@ pipeline {
                             echo "========== RUNNING SEARCH TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
                             '''
                         }
                     }

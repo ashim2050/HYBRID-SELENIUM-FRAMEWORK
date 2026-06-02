@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    tools {
+        maven 'MAVEN'
+    }
 
     // Define parameters that can be configured in Jenkins job
     parameters {
@@ -36,7 +39,6 @@ pipeline {
         WORKSPACE_DIR = "${WORKSPACE}"
         REPORT_DIR = "${WORKSPACE}/output/reports"
         TEST_REPORT_DIR = "${WORKSPACE}/target/surefire-reports"
-        MAVEN_HOME = '/usr/local/maven'
         JAVA_HOME = '/usr/lib/jvm/java-8-openjdk-amd64'
     }
 

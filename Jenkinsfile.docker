@@ -1,0 +1,424 @@
+// Jenkinsfile.docker
+// Dockerized version for containerized parallel test execution
+// This approach uses Docker containers instead of separate VM nodes
+
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'MAIL_TO',
+            defaultValue: 'ashimnayak2050@gmail.com',
+            description: 'Email recipients'
+        )
+        string(
+            name: 'MAIL_CC',
+            defaultValue: 'ashim.nayak2@gmail.com',
+            description: 'CC recipients'
+        )
+        booleanParam(
+            name: 'SEND_EMAIL',
+            defaultValue: true,
+            description: 'Send email with reports'
+        )
+        choice(
+            name: 'PARALLEL_CONTAINERS',
+            choices: ['3', '4', '6'],
+            description: 'Number of parallel Docker containers'
+        )
+        booleanParam(
+            name: 'BUILD_DOCKER_IMAGE',
+            defaultValue: false,
+            description: 'Build Docker image (check for Dockerfile changes)'
+        )
+    }
+
+    environment {
+        DOCKER_IMAGE = 'hybrid-selenium:latest'
+        DOCKER_REGISTRY = 'your-registry'
+        PROJECT_NAME = 'Hybrid-Selenium-Framework'
+        REPORT_DIR = "${WORKSPACE}/output/reports"
+        CONTAINER_WORKSPACE = '/workspace'
+    }
+
+    stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    echo """
+                    ╔════════════════════════════════════════════════════════════╗
+                    ║   ${PROJECT_NAME} - Docker Pipeline Started              ║
+                    ║   Build: #${BUILD_NUMBER}                                 ║
+                    ║   Parallel Containers: ${params.PARALLEL_CONTAINERS}      ║
+                    ╚════════════════════════════════════════════════════════════╝
+                    """
+                    
+                    currentBuild.description = """
+                    Docker Containers: ${params.PARALLEL_CONTAINERS}
+                    Build Docker Image: ${params.BUILD_DOCKER_IMAGE}
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            when {
+                expression { params.BUILD_DOCKER_IMAGE == true }
+            }
+            steps {
+                script {
+                    echo "Building Docker image: ${DOCKER_IMAGE}"
+                    sh '''
+                        docker build -t ${DOCKER_IMAGE} \
+                            --build-arg JAVA_VERSION=8 \
+                            --build-arg MAVEN_VERSION=3.8.1 \
+                            -f Dockerfile .
+                    '''
+                    
+                    if [ $? -eq 0 ]; then
+                        echo "✓ Docker image built successfully"
+                    else
+                        error "Failed to build Docker image"
+                    fi
+                }
+            }
+        }
+
+        stage('Verify Docker Image') {
+            steps {
+                script {
+                    echo "Verifying Docker image..."
+                    sh '''
+                        docker inspect ${DOCKER_IMAGE} > /dev/null || \
+                        (echo "Docker image not found, pulling from registry..." && \
+                         docker pull ${DOCKER_REGISTRY}/${DOCKER_IMAGE})
+                    '''
+                }
+            }
+        }
+
+        stage('Prepare Test Environment') {
+            steps {
+                script {
+                    echo "Preparing test environment..."
+                    sh '''
+                        # Create necessary directories
+                        mkdir -p ${REPORT_DIR}
+                        mkdir -p ${WORKSPACE}/containers-output
+                        
+                        # Set permissions
+                        chmod -R 777 ${WORKSPACE}/output
+                        chmod -R 777 ${WORKSPACE}/target
+                        
+                        echo "Test environment ready"
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests in Parallel Containers') {
+            parallel {
+                stage('API Tests - Container 1') {
+                    steps {
+                        script {
+                            echo "Starting API Tests in Docker Container..."
+                            sh '''
+                                docker run --rm \
+                                    --name api-test-${BUILD_NUMBER} \
+                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
+                                    -e TEST_SUITE=ApiDataDrivenTests \
+                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
+                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
+                                    ${DOCKER_IMAGE} \
+                                    mvn clean test \
+                                        -Dtest=ApiDataDrivenTests \
+                                        -DsuiteXmlFile=src/test/resources/testng.xml \
+                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            echo "✓ API Tests container completed"
+                            sh '''
+                                # Copy reports from container workspace
+                                cp -r ${WORKSPACE}/target/surefire-reports/* \
+                                      ${WORKSPACE}/containers-output/api-reports/ 2>/dev/null || true
+                            '''
+                        }
+                    }
+                }
+
+                stage('Login Tests - Container 2') {
+                    steps {
+                        script {
+                            echo "Starting Login Tests in Docker Container..."
+                            sh '''
+                                docker run --rm \
+                                    --name login-test-${BUILD_NUMBER} \
+                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
+                                    -e TEST_SUITE=LoginTests \
+                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
+                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
+                                    ${DOCKER_IMAGE} \
+                                    mvn clean test \
+                                        -Dtest=LoginTests \
+                                        -DsuiteXmlFile=src/test/resources/testng.xml \
+                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            echo "✓ Login Tests container completed"
+                            sh '''
+                                # Copy reports
+                                cp -r ${WORKSPACE}/target/surefire-reports/* \
+                                      ${WORKSPACE}/containers-output/login-reports/ 2>/dev/null || true
+                            '''
+                        }
+                    }
+                }
+
+                stage('Search Tests - Container 3') {
+                    steps {
+                        script {
+                            echo "Starting Search Tests in Docker Container..."
+                            sh '''
+                                docker run --rm \
+                                    --name search-test-${BUILD_NUMBER} \
+                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
+                                    -e TEST_SUITE=SearchTests \
+                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
+                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
+                                    ${DOCKER_IMAGE} \
+                                    mvn clean test \
+                                        -Dtest=SearchTests \
+                                        -DsuiteXmlFile=src/test/resources/testng.xml \
+                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            echo "✓ Search Tests container completed"
+                            sh '''
+                                # Copy reports
+                                cp -r ${WORKSPACE}/target/surefire-reports/* \
+                                      ${WORKSPACE}/containers-output/search-reports/ 2>/dev/null || true
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Consolidate Reports') {
+            steps {
+                script {
+                    echo "Consolidating test reports..."
+                    sh '''
+                        mkdir -p ${WORKSPACE}/consolidated-reports
+                        
+                        # Merge all container reports
+                        find ${WORKSPACE}/containers-output -name "*.html" -o -name "*.xml" | \
+                        while read file; do
+                            cp "$file" ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                        done
+                        
+                        # Add output/reports content
+                        if [ -d "${REPORT_DIR}" ]; then
+                            cp -r ${REPORT_DIR}/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                        fi
+                        
+                        echo "✓ Reports consolidated"
+                        find ${WORKSPACE}/consolidated-reports -type f | wc -l
+                    '''
+                }
+            }
+        }
+
+        stage('Email Report') {
+            when {
+                expression { params.SEND_EMAIL == true }
+            }
+            steps {
+                script {
+                    echo "Preparing email report..."
+                    
+                    def buildStatus = currentBuild.result ?: 'SUCCESS'
+                    def emailBody = buildEmailContent(buildStatus)
+                    
+                    emailext(
+                        subject: "${PROJECT_NAME} - Build #${BUILD_NUMBER} - ${buildStatus}",
+                        body: emailBody,
+                        to: params.MAIL_TO,
+                        cc: params.MAIL_CC ?: '',
+                        mimeType: 'text/html',
+                        attachmentsPattern: '''
+                            consolidated-reports/**/*.html,
+                            consolidated-reports/**/*.xml
+                        ''',
+                        compressLog: true,
+                        recipientProviders: [
+                            developers(),
+                            requestor()
+                        ]
+                    )
+                    
+                    echo "✓ Email sent"
+                }
+            }
+        }
+
+        stage('Archive Results') {
+            steps {
+                script {
+                    echo "Archiving test results..."
+                    
+                    archiveArtifacts artifacts: '''
+                        consolidated-reports/**/*,
+                        containers-output/**/*,
+                        output/reports/**/*
+                    ''',
+                    allowEmptyArchive: true,
+                    fingerprint: true
+                    
+                    junit testResults: 'consolidated-reports/**/*.xml',
+                          allowEmptyResults: true
+                    
+                    echo "✓ Results archived"
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                script {
+                    echo "Cleaning up Docker containers..."
+                    sh '''
+                        # Stop and remove any remaining containers
+                        docker ps -a --filter "name=api-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
+                        docker ps -a --filter "name=login-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
+                        docker ps -a --filter "name=search-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
+                        
+                        # Cleanup workspace
+                        rm -rf ${WORKSPACE}/containers-output
+                        
+                        echo "✓ Cleanup completed"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo """
+                ╔════════════════════════════════════════════════════════════╗
+                ║   Pipeline Completed                                      ║
+                ║   Status: ${currentBuild.result}                          ║
+                ║   Duration: ${currentBuild.durationString}                ║
+                ╚════════════════════════════════════════════════════════════╝
+                """
+            }
+            
+            // Publish test results
+            junit testResults: 'consolidated-reports/**/*.xml',
+                  allowEmptyResults: true,
+                  skipPublishingChecks: true
+        }
+        
+        failure {
+            script {
+                echo "Build failed - sending failure notification"
+                
+                if (params.SEND_EMAIL) {
+                    emailext(
+                        subject: "⚠️ ${PROJECT_NAME} - Build #${BUILD_NUMBER} - FAILED",
+                        body: "<h2>Build Failed</h2><p>Check logs: ${BUILD_URL}</p>",
+                        to: params.MAIL_TO,
+                        cc: params.MAIL_CC ?: '',
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+    }
+}
+
+def buildEmailContent(buildStatus) {
+    return """
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+            .header { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; }
+            .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+            .status { font-size: 24px; margin: 15px 0; }
+            .success { color: #28a745; }
+            .failure { color: #dc3545; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+            th { background: #f5f5f5; font-weight: bold; }
+            .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; }
+            .footer { color: #999; font-size: 12px; margin-top: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h2>🐳 Hybrid Selenium Framework - Docker Pipeline Report</h2>
+        </div>
+        <div class="container">
+            <div class="status ${buildStatus.toLowerCase() == 'success' ? 'success' : 'failure'}">
+                ${buildStatus == 'SUCCESS' ? '✓' : '✗'} Build ${buildStatus}
+            </div>
+            
+            <table>
+                <tr>
+                    <th>Build Info</th>
+                    <th>Details</th>
+                </tr>
+                <tr>
+                    <td>Build Number</td>
+                    <td><a href="${env.BUILD_URL}">#${env.BUILD_NUMBER}</a></td>
+                </tr>
+                <tr>
+                    <td>Job</td>
+                    <td>${env.JOB_NAME}</td>
+                </tr>
+                <tr>
+                    <td>Status</td>
+                    <td><strong>${buildStatus}</strong></td>
+                </tr>
+                <tr>
+                    <td>Duration</td>
+                    <td>${currentBuild.durationString}</td>
+                </tr>
+                <tr>
+                    <td>Parallel Containers</td>
+                    <td>${params.PARALLEL_CONTAINERS}</td>
+                </tr>
+            </table>
+            
+            <h3>Test Execution Summary</h3>
+            <ul>
+                <li>🐳 API Tests - Docker Container</li>
+                <li>🐳 Login Tests - Docker Container</li>
+                <li>🐳 Search Tests - Docker Container</li>
+            </ul>
+            
+            <p>
+                <a href="${env.BUILD_URL}artifact/consolidated-reports/" class="btn">View Reports</a>
+            </p>
+            
+            <div class="footer">
+                <p>Automated Docker-based test execution pipeline</p>
+                <p>Generated: ${new Date()}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+}

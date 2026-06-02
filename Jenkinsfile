@@ -65,7 +65,7 @@ pipeline {
                         script {
                             echo "========== BUILDING PROJECT =========="
                             sh '''
-                        mvn clean compile -DskipTests -X
+                        mvn clean compile -DskipTests
                     '''
                         }
                     }
@@ -265,7 +265,7 @@ pipeline {
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'output/reports/**/*.html, target/surefire-reports/**/*.html',
+                        attachmentsPattern: 'output/reports/ExtentReport_*.html, target/surefire-reports/**/*.html',
                         recipientProviders: [
                             developers(),
                             requestor()

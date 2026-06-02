@@ -74,9 +74,6 @@ pipeline {
         stage('Parallel Test Execution') {
             parallel {
                 stage('API Tests') {
-                    agent {
-                        label 'api-test-node'
-                    }
                     steps {
                         script {
                             echo "========== RUNNING API TESTS =========="
@@ -102,9 +99,6 @@ pipeline {
                 }
 
                 stage('Login Tests') {
-                    agent {
-                        label 'login-test-node'
-                    }
                     steps {
                         script {
                             echo "========== RUNNING LOGIN TESTS =========="
@@ -130,9 +124,6 @@ pipeline {
                 }
 
                 stage('Search Tests') {
-                    agent {
-                        label 'search-test-node'
-                    }
                     steps {
                         script {
                             echo "========== RUNNING SEARCH TESTS =========="

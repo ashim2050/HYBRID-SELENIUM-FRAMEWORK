@@ -1,6 +1,7 @@
 pipeline {
     agent any
     tools {
+        jdk 'JDK8'
         maven 'MAVEN'
     }
 
@@ -39,7 +40,6 @@ pipeline {
         WORKSPACE_DIR = "${WORKSPACE}"
         REPORT_DIR = "${WORKSPACE}/output/reports"
         TEST_REPORT_DIR = "${WORKSPACE}/target/surefire-reports"
-        JAVA_HOME = '/usr/lib/jvm/java-8-openjdk-amd64'
     }
 
     // Define build triggers
@@ -61,16 +61,14 @@ pipeline {
 
     stages {
         stage('Build') {
-            steps {
-                script {
-                    echo "========== BUILDING PROJECT =========="
-                    sh '''
-                        export JAVA_HOME=${JAVA_HOME}
-                        export PATH=$JAVA_HOME/bin:$PATH
+                    steps {
+                        script {
+                            echo "========== BUILDING PROJECT =========="
+                            sh '''
                         mvn clean compile -DskipTests -X
                     '''
-                }
-            }
+                        }
+                    }
         }
 
         stage('Parallel Test Execution') {
@@ -83,8 +81,6 @@ pipeline {
                         script {
                             echo "========== RUNNING API TESTS =========="
                             sh '''
-                                export JAVA_HOME=${JAVA_HOME}
-                                export PATH=$JAVA_HOME/bin:$PATH
                                 cd ${WORKSPACE}
                                 mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml
                             '''
@@ -113,8 +109,6 @@ pipeline {
                         script {
                             echo "========== RUNNING LOGIN TESTS =========="
                             sh '''
-                                export JAVA_HOME=${JAVA_HOME}
-                                export PATH=$JAVA_HOME/bin:$PATH
                                 cd ${WORKSPACE}
                                 mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml
                             '''
@@ -143,8 +137,6 @@ pipeline {
                         script {
                             echo "========== RUNNING SEARCH TESTS =========="
                             sh '''
-                                export JAVA_HOME=${JAVA_HOME}
-                                export PATH=$JAVA_HOME/bin:$PATH
                                 cd ${WORKSPACE}
                                 mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml
                             '''
@@ -280,8 +272,7 @@ pipeline {
                     emailext(
                         subject: "${params.MAIL_SUBJECT} - Build #${buildNumber} - ${buildStatus}",
                         body: mailBody,
-                        to: params.MAIL_TO,
-                        cc: params.MAIL_CC ?: '',
+                        to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
                         attachmentsPattern: 'output/reports/**/*.html, target/surefire-reports/**/*.html',
                         recipientProviders: [
@@ -343,8 +334,7 @@ pipeline {
                         <p>Build: <a href="${env.BUILD_URL}">#${env.BUILD_NUMBER}</a></p>
                         <p>Check the logs: <a href="${env.BUILD_URL}console">Console Output</a></p>
                         """,
-                        to: params.MAIL_TO,
-                        cc: params.MAIL_CC ?: '',
+                        to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html'
                     )
                 }

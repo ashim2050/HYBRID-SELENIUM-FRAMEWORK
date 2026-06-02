@@ -1,8 +1,8 @@
 pipeline {
     agent any
     tools {
-        jdk 'JDK8'
-        maven 'Maven 3.9'
+        jdk 'jdk21'
+        maven 'MAVEN'
     }
 
     // Define parameters that can be configured in Jenkins job

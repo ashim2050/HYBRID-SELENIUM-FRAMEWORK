@@ -424,7 +424,7 @@ CONSOLIDATED
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'output/reports/api/*.html,output/reports/login/*.html,output/reports/search/*.html'
+                        attachmentsPattern: 'output/reports/ExtentReport_Consolidated.html,output/reports/api/*.html,output/reports/login/*.html,output/reports/search/*.html'
                     )
                 }
             }
@@ -441,12 +441,12 @@ CONSOLIDATED
                                 allowEmptyArchive: true,
                                 fingerprint: true
                 
-                // Clean workspace
+                // Clean workspace - but keep output/reports for access
                 cleanWs(
                     deleteDirs: true,
                     patterns: [
-                        [pattern: 'output/reports/**', type: 'INCLUDE'],
-                        [pattern: 'target/surefire-reports/**', type: 'INCLUDE']
+                        [pattern: 'target/surefire-reports/**', type: 'INCLUDE'],
+                        [pattern: 'branch-output/**', type: 'INCLUDE']
                     ]
                 )
             }

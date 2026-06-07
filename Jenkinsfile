@@ -193,77 +193,174 @@ pipeline {
                     LOGIN_REPORT=$(find ${WORKSPACE}/output/reports/login -name "ExtentReport_login_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_login.html")
                     SEARCH_REPORT=$(find ${WORKSPACE}/output/reports/search -name "ExtentReport_search_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_search.html")
                     
-                    # Create consolidated report with variable substitution and timestamp in filename
+                    # Create consolidated report dashboard with links to open reports in new tabs
                     cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated_${CONSOL_TIMESTAMP}.html <<CONSOL
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consolidated Extent Reports</title>
+    <title>Consolidated Extent Reports Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
-        .header { background-color: #333; color: white; padding: 20px; text-align: center; }
-        .header h1 { margin-bottom: 10px; }
-        .tabs { display: flex; background-color: #444; gap: 5px; padding: 10px; flex-wrap: wrap; }
-        .tab-btn { padding: 12px 20px; background-color: #555; color: white; border: none; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold; }
-        .tab-btn.active { background-color: #007bff; }
-        .tab-btn:hover { background-color: #0056b3; }
-        .content { padding: 20px; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        iframe { width: 100%; height: 800px; border: 1px solid #ddd; border-radius: 4px; }
-        .footer { padding: 15px; text-align: center; color: #666; font-size: 12px; background-color: #fff; border-top: 1px solid #ddd; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { 
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 30px; 
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 { 
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .header p {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .reports-grid { 
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        .report-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        .report-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .report-header h2 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+        .report-header .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .report-body {
+            padding: 25px;
+            text-align: center;
+        }
+        .report-file {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 15px;
+            word-break: break-all;
+        }
+        .open-btn {
+            display: inline-block;
+            background-color: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .open-btn:hover {
+            background-color: #764ba2;
+        }
+        .footer { 
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 20px; 
+            border-radius: 8px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .stat-item {
+            background-color: #f0f0f0;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🧪 Consolidated Extent Reports</h1>
-        <p>Build #${BUILD_NUM} - Generated on ${GEN_DATE}</p>
-    </div>
-
-    <div class="tabs" id="tabs"></div>
-
-    <div class="content">
-        <div id="api-content" class="tab-content active">
-            <iframe src="api/${API_REPORT}"></iframe>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Test Execution Report Dashboard</h1>
+            <p><strong>Build #${BUILD_NUM}</strong></p>
+            <p>Generated on <strong>${GEN_DATE}</strong></p>
         </div>
-        <div id="login-content" class="tab-content">
-            <iframe src="login/${LOGIN_REPORT}"></iframe>
+
+        <div class="reports-grid">
+            <div class="report-card">
+                <div class="report-header">
+                    <div class="icon">🔌</div>
+                    <h2>API Tests</h2>
+                </div>
+                <div class="report-body">
+                    <div class="report-file">📄 ${API_REPORT}</div>
+                    <a href="api/${API_REPORT}" target="_blank" class="open-btn">View Report</a>
+                </div>
+            </div>
+
+            <div class="report-card">
+                <div class="report-header">
+                    <div class="icon">🔐</div>
+                    <h2>Login Tests</h2>
+                </div>
+                <div class="report-body">
+                    <div class="report-file">📄 ${LOGIN_REPORT}</div>
+                    <a href="login/${LOGIN_REPORT}" target="_blank" class="open-btn">View Report</a>
+                </div>
+            </div>
+
+            <div class="report-card">
+                <div class="report-header">
+                    <div class="icon">🔍</div>
+                    <h2>Search Tests</h2>
+                </div>
+                <div class="report-body">
+                    <div class="report-file">📄 ${SEARCH_REPORT}</div>
+                    <a href="search/${SEARCH_REPORT}" target="_blank" class="open-btn">View Report</a>
+                </div>
+            </div>
         </div>
-        <div id="search-content" class="tab-content">
-            <iframe src="search/${SEARCH_REPORT}"></iframe>
+
+        <div class="footer">
+            <p>✅ Click "View Report" on any card above to open the detailed test report in a new tab</p>
+            <div class="stats">
+                <div class="stat-item">🐳 Build: #${BUILD_NUM}</div>
+                <div class="stat-item">📅 Date: ${GEN_DATE}</div>
+                <div class="stat-item">📦 Modules: 3</div>
+            </div>
         </div>
     </div>
-
-    <div class="footer">
-        <p>All test reports embedded in this consolidated view. Click tabs above to switch between reports.</p>
-    </div>
-
-    <script>
-        const reports = [
-            { id: 'api', name: 'API Tests' },
-            { id: 'login', name: 'Login Tests' },
-            { id: 'search', name: 'Search Tests' }
-        ];
-
-        const tabsContainer = document.getElementById('tabs');
-        reports.forEach((report, index) => {
-            const btn = document.createElement('button');
-            btn.className = 'tab-btn' + (index === 0 ? ' active' : '');
-            btn.textContent = report.name;
-            btn.onclick = (e) => switchTab(report.id, e);
-            tabsContainer.appendChild(btn);
-        });
-
-        function switchTab(tabId, event) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId + '-content').classList.add('active');
-            event.target.classList.add('active');
-        }
-    </script>
 </body>
 </html>
 CONSOL

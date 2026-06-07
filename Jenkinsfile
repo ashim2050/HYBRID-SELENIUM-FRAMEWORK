@@ -393,7 +393,7 @@ EOF
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'output/reports/ExtentReport_Consolidated.html,output/reports/api/ExtentReport_api.html,output/reports/login/ExtentReport_login.html,output/reports/search/ExtentReport_search.html'
+                        attachmentsPattern: 'output/reports/**/*.html'
                     )
                 }
             }

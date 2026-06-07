@@ -193,7 +193,7 @@ pipeline {
                     LOGIN_REPORT=$(find ${WORKSPACE}/output/reports/login -name "ExtentReport_login_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_login.html")
                     SEARCH_REPORT=$(find ${WORKSPACE}/output/reports/search -name "ExtentReport_search_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_search.html")
                     
-                    # Create consolidated report dashboard with links to open reports in new tabs
+                    # Create consolidated report dashboard with graphs and new tab links
                     cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated_${CONSOL_TIMESTAMP}.html <<CONSOL
 <!DOCTYPE html>
 <html>
@@ -201,6 +201,7 @@ pipeline {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consolidated Extent Reports Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -209,7 +210,7 @@ pipeline {
             min-height: 100vh;
             padding: 40px 20px;
         }
-        .container { max-width: 1000px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         .header { 
             background-color: rgba(255, 255, 255, 0.95);
             padding: 30px; 
@@ -230,7 +231,7 @@ pipeline {
         }
         .reports-grid { 
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 25px;
             margin-bottom: 40px;
         }
@@ -261,16 +262,57 @@ pipeline {
         }
         .report-body {
             padding: 25px;
-            text-align: center;
         }
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin-bottom: 20px;
+        }
+        .stats-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat-box {
+            flex: 1;
+            min-width: 70px;
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .stat-box.pass { border-left-color: #28a745; }
+        .stat-box.pass .stat-value { color: #28a745; }
+        
+        .stat-box.fail { border-left-color: #dc3545; }
+        .stat-box.fail .stat-value { color: #dc3545; }
+        
+        .stat-box.skip { border-left-color: #ffc107; }
+        .stat-box.skip .stat-value { color: #ffc107; }
+        
         .report-file {
             color: #999;
             font-size: 12px;
             margin-bottom: 15px;
             word-break: break-all;
+            text-align: center;
         }
         .open-btn {
-            display: inline-block;
+            display: block;
             background-color: #667eea;
             color: white;
             padding: 12px 30px;
@@ -280,7 +322,9 @@ pipeline {
             font-size: 14px;
             font-weight: bold;
             text-decoration: none;
+            text-align: center;
             transition: background-color 0.3s;
+            width: 100%;
         }
         .open-btn:hover {
             background-color: #764ba2;
@@ -307,6 +351,7 @@ pipeline {
             border-radius: 5px;
             font-size: 13px;
         }
+        .loading { color: #999; font-style: italic; }
     </style>
 </head>
 <body>
@@ -324,8 +369,14 @@ pipeline {
                     <h2>API Tests</h2>
                 </div>
                 <div class="report-body">
+                    <div class="chart-container">
+                        <canvas id="apiChart"></canvas>
+                    </div>
+                    <div class="stats-row" id="apiStats">
+                        <div class="loading">Loading...</div>
+                    </div>
                     <div class="report-file">📄 ${API_REPORT}</div>
-                    <a href="api/${API_REPORT}" target="_blank" class="open-btn">View Report</a>
+                    <a href="api/${API_REPORT}" target="_blank" class="open-btn">📊 View Full Report</a>
                 </div>
             </div>
 
@@ -335,8 +386,14 @@ pipeline {
                     <h2>Login Tests</h2>
                 </div>
                 <div class="report-body">
+                    <div class="chart-container">
+                        <canvas id="loginChart"></canvas>
+                    </div>
+                    <div class="stats-row" id="loginStats">
+                        <div class="loading">Loading...</div>
+                    </div>
                     <div class="report-file">📄 ${LOGIN_REPORT}</div>
-                    <a href="login/${LOGIN_REPORT}" target="_blank" class="open-btn">View Report</a>
+                    <a href="login/${LOGIN_REPORT}" target="_blank" class="open-btn">📊 View Full Report</a>
                 </div>
             </div>
 
@@ -346,14 +403,20 @@ pipeline {
                     <h2>Search Tests</h2>
                 </div>
                 <div class="report-body">
+                    <div class="chart-container">
+                        <canvas id="searchChart"></canvas>
+                    </div>
+                    <div class="stats-row" id="searchStats">
+                        <div class="loading">Loading...</div>
+                    </div>
                     <div class="report-file">📄 ${SEARCH_REPORT}</div>
-                    <a href="search/${SEARCH_REPORT}" target="_blank" class="open-btn">View Report</a>
+                    <a href="search/${SEARCH_REPORT}" target="_blank" class="open-btn">📊 View Full Report</a>
                 </div>
             </div>
         </div>
 
         <div class="footer">
-            <p>✅ Click "View Report" on any card above to open the detailed test report in a new tab</p>
+            <p>✅ Click "View Full Report" on any card above to open the detailed test report in a new tab</p>
             <div class="stats">
                 <div class="stat-item">🐳 Build: #${BUILD_NUM}</div>
                 <div class="stat-item">📅 Date: ${GEN_DATE}</div>
@@ -361,6 +424,88 @@ pipeline {
             </div>
         </div>
     </div>
+
+    <script>
+        const charts = {};
+        const reportFiles = [
+            { id: 'api', file: 'api/${API_REPORT}', title: 'API Tests' },
+            { id: 'login', file: 'login/${LOGIN_REPORT}', title: 'Login Tests' },
+            { id: 'search', file: 'search/${SEARCH_REPORT}', title: 'Search Tests' }
+        ];
+
+        async function loadReportStats(reportInfo) {
+            try {
+                const response = await fetch(reportInfo.file);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Extract test stats from Extent Report HTML
+                const passCount = parseInt(doc.querySelector('[data-testcount-pass]')?.getAttribute('data-testcount-pass') || 
+                                          doc.body.textContent.match(/Passed:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+                const failCount = parseInt(doc.querySelector('[data-testcount-fail]')?.getAttribute('data-testcount-fail') || 
+                                          doc.body.textContent.match(/Failed:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+                const skipCount = parseInt(doc.querySelector('[data-testcount-skip]')?.getAttribute('data-testcount-skip') || 
+                                          doc.body.textContent.match(/Skipped:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+
+                return { pass: passCount, fail: failCount, skip: skipCount };
+            } catch (e) {
+                console.error('Error loading report:', reportInfo.id, e);
+                return { pass: 0, fail: 0, skip: 0 };
+            }
+        }
+
+        function createChart(canvasId, stats, title) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Passed', 'Failed', 'Skipped'],
+                    datasets: [{
+                        data: [stats.pass, stats.fail, stats.skip],
+                        backgroundColor: ['#28a745', '#dc3545', '#ffc107'],
+                        borderColor: ['#20c997', '#c82333', '#e0a800'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { size: 12 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(elementId, stats) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = \`
+                <div class="stat-box pass">
+                    <div class="stat-label">Passed</div>
+                    <div class="stat-value">\${stats.pass}</div>
+                </div>
+                <div class="stat-box fail">
+                    <div class="stat-label">Failed</div>
+                    <div class="stat-value">\${stats.fail}</div>
+                </div>
+                <div class="stat-box skip">
+                    <div class="stat-label">Skipped</div>
+                    <div class="stat-value">\${stats.skip}</div>
+                </div>
+            \`;
+        }
+
+        // Load all reports and create charts
+        Promise.all(reportFiles.map(async (report) => {
+            const stats = await loadReportStats(report);
+            createChart(report.id + 'Chart', stats, report.title);
+            updateStats(report.id + 'Stats', stats);
+        })).catch(e => console.error('Error initializing charts:', e));
+    </script>
 </body>
 </html>
 CONSOL

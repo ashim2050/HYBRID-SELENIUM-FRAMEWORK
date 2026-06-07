@@ -44,7 +44,20 @@ public class TestListener implements ITestListener, ISuiteListener {
         String reportPath = ConfigReader.getReportsOutputPath()
                 + "ExtentReport_" + timestamp + ".html";
 
-        new java.io.File(ConfigReader.getReportsOutputPath()).mkdirs();
+        java.io.File reportsDir = new java.io.File(ConfigReader.getReportsOutputPath());
+        if (reportsDir.exists() && reportsDir.isDirectory()) {
+            java.io.File[] oldReports = reportsDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".html"));
+            if (oldReports != null) {
+                for (java.io.File oldReport : oldReports) {
+                    try {
+                        oldReport.delete();
+                    } catch (Exception ignored) {
+                        logger.warn("Unable to delete old report file: {}", oldReport.getAbsolutePath());
+                    }
+                }
+            }
+        }
+        reportsDir.mkdirs();
 
         ExtentSparkReporter sparkReporter = new ExtentSparkReporter(reportPath);
         sparkReporter.config().setDocumentTitle("Hybrid Framework Execution Report");

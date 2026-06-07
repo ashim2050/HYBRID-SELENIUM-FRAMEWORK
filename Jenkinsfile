@@ -238,7 +238,7 @@ INDEX
                     def jobName = env.JOB_NAME
                     def reportGeneratedAt = sh(script: "date +'%Y-%m-%d %H:%M:%S'", returnStdout: true).trim()
                     def latestReport = sh(script: "find ${WORKSPACE}/consolidated-reports -name '*.html' ! -name 'index.html' | sort | tail -1 || true", returnStdout: true).trim()
-                    def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replaceFirst('^${WORKSPACE}/', '')}" : ''
+                    def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replace("${WORKSPACE}/", '')}" : ''
                     def latestReportHtml = reportLink ? "<li><a href='${reportLink}'>View Latest HTML Report</a></li>" : ''
 
                     def mailBody = """

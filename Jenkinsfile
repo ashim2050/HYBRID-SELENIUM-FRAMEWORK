@@ -308,7 +308,7 @@ INDEX
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'consolidated-reports/ExtentReport_Final.html,consolidated-reports/*/ExtentReport_*.html'
+                        attachmentsPattern: 'output/reports/api/*.html,output/reports/login/*.html,output/reports/search/*.html'
                     )
                 }
             }

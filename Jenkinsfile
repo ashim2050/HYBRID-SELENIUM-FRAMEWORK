@@ -184,7 +184,8 @@ pipeline {
                 script {
                     echo "========== GENERATING CONSOLIDATED EXTENT REPORT =========="
                     sh '''
-                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'CONSOLIDATED'
+                    # Create consolidated report HTML
+                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -247,52 +248,38 @@ pipeline {
             font-size: 12px;
             text-align: center;
         }
-        .status-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .status-success {
-            background-color: #28a745;
-            color: white;
-        }
-        .status-failure {
-            background-color: #dc3545;
-            color: white;
-        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🧪 Consolidated Extent Reports</h1>
-        <p>Build #${BUILD_NUMBER} - Generated on $(date +'%Y-%m-%d %H:%M:%S')</p>
+        <p>Build #''' $BUILD_NUMBER ''' - Generated on ''' $(date +'%Y-%m-%d %H:%M:%S') '''</p>
     </div>
 
     <div class="container">
         <div class="report-section">
             <h2>📊 Test Node Reports</h2>
             <p>Click on any node below to view its detailed Extent report.</p>
-            
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
-CONSOLIDATED
-                    
-                    # Find and list all extent reports from each node
+EOF
+
+                    # Add report links dynamically
                     for node in api login search; do
                         report_file="${WORKSPACE}/output/reports/${node}/ExtentReport_${node}.html"
                         if [ -f "$report_file" ]; then
+                            node_upper=$(echo "$node" | tr '[:lower:]' '[:upper:]')
                             rel_path="output/reports/${node}/ExtentReport_${node}.html"
-                            cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<CONSOLIDATED
+                            cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<EOF
                 <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; text-align: center;">
-                    <h3 style="margin-top: 0; color: #333;">$(echo ${node} | tr '[:lower:]' '[:upper:]') Tests</h3>
-                    <a href="${rel_path}" class="report-link">View ${node^} Report</a>
+                    <h3 style="margin-top: 0; color: #333;">${node_upper} Tests</h3>
+                    <a href="${rel_path}" class="report-link">View ${node_upper} Report</a>
                 </div>
-CONSOLIDATED
+EOF
                         fi
                     done
-                    
-                    cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'CONSOLIDATED'
+
+                    # Close HTML
+                    cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'EOF'
             </div>
         </div>
 
@@ -303,8 +290,8 @@ CONSOLIDATED
     </div>
 </body>
 </html>
-CONSOLIDATED
-                    
+EOF
+
                     echo "Consolidated report generated successfully"
                     ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html
                     '''

@@ -13,3 +13,13 @@
 
 # Logs
 *.log
+
+# IDE and workspace metadata
+.DS_Store
+.classpath
+.project
+.settings/
+
+# Generated framework artifacts
+output/logs/
+output/reports/

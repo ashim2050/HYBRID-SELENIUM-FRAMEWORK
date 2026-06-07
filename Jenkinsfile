@@ -79,7 +79,7 @@ pipeline {
                             echo "========== RUNNING API TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/api/
                             '''
                         }
                     }
@@ -88,8 +88,8 @@ pipeline {
                             // Archive test results
                             junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
                             
-                            // Archive Extent reports
-                            archiveArtifacts artifacts: 'output/reports/*.html', 
+                            // Archive Extent reports for API tests only
+                            archiveArtifacts artifacts: 'output/reports/api/*.html', 
                                             allowEmptyArchive: true
                         }
                         failure {
@@ -104,7 +104,7 @@ pipeline {
                             echo "========== RUNNING LOGIN TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/login/
                             '''
                         }
                     }
@@ -113,8 +113,8 @@ pipeline {
                             // Archive test results
                             junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
                             
-                            // Archive Extent reports
-                            archiveArtifacts artifacts: 'output/reports/*.html', 
+                            // Archive Extent reports for Login tests only
+                            archiveArtifacts artifacts: 'output/reports/login/*.html', 
                                             allowEmptyArchive: true
                         }
                         failure {
@@ -129,7 +129,7 @@ pipeline {
                             echo "========== RUNNING SEARCH TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/search/
                             '''
                         }
                     }
@@ -138,8 +138,8 @@ pipeline {
                             // Archive test results
                             junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
                             
-                            // Archive Extent reports
-                            archiveArtifacts artifacts: 'output/reports/*.html', 
+                            // Archive Extent reports for Search tests only
+                            archiveArtifacts artifacts: 'output/reports/search/*.html', 
                                             allowEmptyArchive: true
                         }
                         failure {

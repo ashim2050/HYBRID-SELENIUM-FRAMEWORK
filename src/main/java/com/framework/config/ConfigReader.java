@@ -39,13 +39,21 @@ public class ConfigReader {
 
     private ConfigReader() {}
 
-    /** Returns raw property value or @code null. */
+    /** Returns raw property value or null, with system properties overriding config values. */
     public static String get(String key) {
+        String systemProp = System.getProperty(key);
+        if (systemProp != null && !systemProp.isEmpty()) {
+            return systemProp;
+        }
         return properties.getProperty(key);
     }
 
-    /** Returns property value or defaultValue when key is missing. */
+    /** Returns property value or defaultValue when key is missing, with system properties overriding config values. */
     public static String get(String key, String defaultValue) {
+        String systemProp = System.getProperty(key);
+        if (systemProp != null && !systemProp.isEmpty()) {
+            return systemProp;
+        }
         return properties.getProperty(key, defaultValue);
     }
 

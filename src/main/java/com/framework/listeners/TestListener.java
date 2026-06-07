@@ -40,6 +40,11 @@ public class TestListener implements ITestListener, ISuiteListener {
         }
 
         String reportFileName = ConfigReader.getReportsFileName();
+        
+        // Add timestamp to filename: ExtentReport_api.html -> ExtentReport_api_20260607_180045.html
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        reportFileName = reportFileName.replace(".html", "_" + timestamp + ".html");
+        
         String reportPath = ConfigReader.getReportsOutputPath() + reportFileName;
 
         java.io.File reportsDir = new java.io.File(ConfigReader.getReportsOutputPath());

@@ -432,7 +432,8 @@ CONSOLIDATED
                         subject: "${params.MAIL_SUBJECT} - Build #${buildNumber} - ${buildStatus}",
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
-                        mimeType: 'text/html'
+                        mimeType: 'text/html',
+                        attachmentsPattern: 'output/reports/**/*.html'
                     )
                 }
             }

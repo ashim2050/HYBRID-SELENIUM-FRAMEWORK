@@ -319,6 +319,15 @@ CONSOLIDATED
             steps {
                 script {
                     echo "========== SENDING EMAIL REPORT =========="
+                    
+                    // Verify attachments exist
+                    sh '''
+                    echo "Verifying attachments exist:"
+                    ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html 2>/dev/null || echo "Consolidated report not found"
+                    ls -lh ${WORKSPACE}/output/reports/api/*.html 2>/dev/null || echo "API reports not found"
+                    ls -lh ${WORKSPACE}/output/reports/login/*.html 2>/dev/null || echo "Login reports not found"
+                    ls -lh ${WORKSPACE}/output/reports/search/*.html 2>/dev/null || echo "Search reports not found"
+                    '''
 
                     def parallelSummary = fileExists('parallel-results.txt') ? readFile('parallel-results.txt').trim() : 'Parallel stage summary not available.'
                     def tests = 0
@@ -424,7 +433,7 @@ CONSOLIDATED
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'output/reports/ExtentReport_Consolidated.html,output/reports/api/*.html,output/reports/login/*.html,output/reports/search/*.html'
+                        attachmentsPattern: '${WORKSPACE}/output/reports/ExtentReport_Consolidated.html,${WORKSPACE}/output/reports/api/*.html,${WORKSPACE}/output/reports/login/*.html,${WORKSPACE}/output/reports/search/*.html'
                     )
                 }
             }

@@ -101,7 +101,7 @@ pipeline {
                                 sh '''
                                 rm -rf branch-output/output/reports/api || true
                                 mkdir -p branch-output/output/reports/api
-                                cp -r output/reports/api branch-output/output/reports/api 2>/dev/null || true
+                                cp -r output/reports/api/* branch-output/output/reports/api/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/output/reports/**', name: 'api-results', allowEmpty: true
                         }
@@ -121,7 +121,7 @@ pipeline {
                                 sh '''
                                 rm -rf branch-output/output/reports/login || true
                                 mkdir -p branch-output/output/reports/login
-                                cp -r output/reports/login branch-output/output/reports/login 2>/dev/null || true
+                                cp -r output/reports/login/* branch-output/output/reports/login/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/output/reports/**', name: 'login-results', allowEmpty: true
                         }
@@ -141,7 +141,7 @@ pipeline {
                                 sh '''
                                 rm -rf branch-output/output/reports/search || true
                                 mkdir -p branch-output/output/reports/search
-                                cp -r output/reports/search branch-output/output/reports/search 2>/dev/null || true
+                                cp -r output/reports/search/* branch-output/output/reports/search/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/output/reports/**', name: 'search-results', allowEmpty: true
                         }
@@ -432,8 +432,7 @@ CONSOLIDATED
                         subject: "${params.MAIL_SUBJECT} - Build #${buildNumber} - ${buildStatus}",
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
-                        mimeType: 'text/html',
-                        attachmentsPattern: '${WORKSPACE}/output/reports/**/*.html'
+                        mimeType: 'text/html'
                     )
                 }
             }

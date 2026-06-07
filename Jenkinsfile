@@ -195,18 +195,19 @@ pipeline {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consolidated Extent Reports</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-        .header { background-color: #333; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        .header h1 { margin: 0; }
-        .header p { margin: 5px 0 0 0; font-size: 14px; }
-        .container { background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .report-section { margin-bottom: 30px; }
-        .report-section h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        .report-link { display: inline-block; padding: 12px 20px; margin: 10px 0; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
-        .report-link:hover { background-color: #0056b3; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
-        .card { border: 1px solid #ddd; padding: 15px; border-radius: 5px; text-align: center; }
-        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; text-align: center; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
+        .header { background-color: #333; color: white; padding: 20px; text-align: center; }
+        .header h1 { margin-bottom: 10px; }
+        .tabs { display: flex; background-color: #444; gap: 5px; padding: 10px; flex-wrap: wrap; }
+        .tab-btn { padding: 12px 20px; background-color: #555; color: white; border: none; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold; }
+        .tab-btn.active { background-color: #007bff; }
+        .tab-btn:hover { background-color: #0056b3; }
+        .content { padding: 20px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        iframe { width: 100%; height: 800px; border: 1px solid #ddd; border-radius: 4px; }
+        .footer { padding: 15px; text-align: center; color: #666; font-size: 12px; background-color: #fff; border-top: 1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -214,47 +215,47 @@ pipeline {
         <h1>🧪 Consolidated Extent Reports</h1>
         <p>Build #BUILD_NUM - Generated on GEN_DATE</p>
     </div>
-    <div class="container">
-        <div class="report-section">
-            <h2>📊 Test Node Reports</h2>
-            <p>Click on any node below to view its detailed Extent report.</p>
-            <div class="grid" id="reports"></div>
+
+    <div class="tabs" id="tabs"></div>
+
+    <div class="content">
+        <div id="api-content" class="tab-content active">
+            <iframe src="api/ExtentReport_api.html"></iframe>
         </div>
-        <div class="footer">
-            <p>This is a consolidated view of all test node reports.</p>
-            <p>Each report contains detailed test execution results, logs, and screenshots for failures.</p>
+        <div id="login-content" class="tab-content">
+            <iframe src="login/ExtentReport_login.html"></iframe>
+        </div>
+        <div id="search-content" class="tab-content">
+            <iframe src="search/ExtentReport_search.html"></iframe>
         </div>
     </div>
+
+    <div class="footer">
+        <p>All test reports embedded in this consolidated view. Click tabs above to switch between reports.</p>
+    </div>
+
     <script>
-        const reports = [];
-EOF
+        const reports = [
+            { id: 'api', name: 'API Tests', file: 'api/ExtentReport_api.html' },
+            { id: 'login', name: 'Login Tests', file: 'login/ExtentReport_login.html' },
+            { id: 'search', name: 'Search Tests', file: 'search/ExtentReport_search.html' }
+        ];
 
-                    # Add each report link
-                    for node in api login search; do
-                        report_file="${WORKSPACE}/output/reports/${node}/ExtentReport_${node}.html"
-                        if [ -f "$report_file" ]; then
-                            node_upper=$(echo "$node" | tr '[:lower:]' '[:upper:]')
-                            rel_path="output/reports/${node}/ExtentReport_${node}.html"
-                            cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<EOF
-        reports.push({
-            name: '${node_upper} Tests',
-            link: '${rel_path}',
-            node: '${node}'
+        const tabsContainer = document.getElementById('tabs');
+        reports.forEach((report, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'tab-btn' + (index === 0 ? ' active' : '');
+            btn.textContent = report.name;
+            btn.onclick = () => switchTab(report.id);
+            tabsContainer.appendChild(btn);
         });
-EOF
-                        fi
-                    done
 
-                    cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'EOF'
-        // Render reports
-        const container = document.getElementById('reports');
-        reports.forEach(report => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `<h3 style="margin-top: 0; color: #333;">${report.name}</h3>
-                <a href="${report.link}" target="_blank" class="report-link">View Report</a>`;
-            container.appendChild(card);
-        });
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId + '-content').classList.add('active');
+            event.target.classList.add('active');
+        }
     </script>
 </body>
 </html>

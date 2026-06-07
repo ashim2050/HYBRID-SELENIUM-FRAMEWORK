@@ -238,7 +238,8 @@ EOF
                             cat >> ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<EOF
         reports.push({
             name: '${node_upper} Tests',
-            link: '${rel_path}'
+            link: '${rel_path}',
+            node: '${node}'
         });
 EOF
                         fi
@@ -251,7 +252,7 @@ EOF
             const card = document.createElement('div');
             card.className = 'card';
             card.innerHTML = `<h3 style="margin-top: 0; color: #333;">${report.name}</h3>
-                <a href="${report.link}" class="report-link">View Report</a>`;
+                <a href="${report.link}" target="_blank" class="report-link">View Report</a>`;
             container.appendChild(card);
         });
     </script>

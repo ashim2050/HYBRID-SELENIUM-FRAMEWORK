@@ -65,8 +65,11 @@ pipeline {
                         script {
                             echo "========== BUILDING PROJECT =========="
                             sh '''
-                        mvn clean compile -DskipTests
-                    '''
+                                rm -rf ${WORKSPACE}/output/reports/* ${WORKSPACE}/consolidated-reports/* || true
+                                mkdir -p ${WORKSPACE}/output/reports
+                                mkdir -p ${WORKSPACE}/consolidated-reports
+                                mvn clean compile -DskipTests
+                            '''
                         }
                     }
         }
@@ -184,9 +187,11 @@ pipeline {
                     echo "========== SENDING EMAIL REPORT =========="
                     
                     def reportFiles = sh(
-                        script: 'find ${WORKSPACE}/output/reports -name "ExtentReport*.html" -type f | head -1',
+                        script: 'find ${WORKSPACE}/output/reports -name "ExtentReport*.html" -type f -exec stat -f "%m %N" {} \; | sort -rn | head -1 | cut -f2- -d" " || true',
                         returnStdout: true
                     ).trim()
+                    def reportRelativePath = reportFiles ? reportFiles.replaceFirst("^${WORKSPACE}/", "") : ''
+                    def reportLink = reportRelativePath ? "${env.BUILD_URL}artifact/${reportRelativePath}" : ''
                     
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def buildNumber = env.BUILD_NUMBER
@@ -249,6 +254,7 @@ pipeline {
         <ul>
             <li><a href="${testReportUrl}">View Consolidated Reports</a></li>
             <li><a href="${env.BUILD_URL}testReport/">View Test Report</a></li>
+            ${reportLink ? "<li><a href=\"${reportLink}\">View Latest Extent Report</a></li>" : ''}
         </ul>
         
         <div class="footer">
@@ -265,7 +271,7 @@ pipeline {
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'output/reports/ExtentReport_*.html'
+                        attachmentsPattern: reportRelativePath
                     )
                 }
             }

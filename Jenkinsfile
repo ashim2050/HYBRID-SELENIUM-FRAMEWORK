@@ -507,9 +507,9 @@ pipeline {
 </body>
 </html>
 CONSOL
-
-                    echo "Consolidated report generated successfully"
-                    ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html
+                    
+                    echo 'Consolidated report generated successfully'
+                    ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated_${CONSOL_TIMESTAMP}.html
                     '''
                 }
             }

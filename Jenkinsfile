@@ -483,20 +483,18 @@ pipeline {
 
         function updateStats(elementId, stats) {
             const container = document.getElementById(elementId);
-            container.innerHTML = \`
-                <div class="stat-box pass">
-                    <div class="stat-label">Passed</div>
-                    <div class="stat-value">\${stats.pass}</div>
-                </div>
-                <div class="stat-box fail">
-                    <div class="stat-label">Failed</div>
-                    <div class="stat-value">\${stats.fail}</div>
-                </div>
-                <div class="stat-box skip">
-                    <div class="stat-label">Skipped</div>
-                    <div class="stat-value">\${stats.skip}</div>
-                </div>
-            \`;
+            container.innerHTML = '<div class="stat-box pass">' +
+                '<div class="stat-label">Passed</div>' +
+                '<div class="stat-value">' + stats.pass + '</div>' +
+                '</div>' +
+                '<div class="stat-box fail">' +
+                '<div class="stat-label">Failed</div>' +
+                '<div class="stat-value">' + stats.fail + '</div>' +
+                '</div>' +
+                '<div class="stat-box skip">' +
+                '<div class="stat-label">Skipped</div>' +
+                '<div class="stat-value">' + stats.skip + '</div>' +
+                '</div>';
         }
 
         // Load all reports and create charts

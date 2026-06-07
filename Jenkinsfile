@@ -217,13 +217,13 @@ INDEX
                     def failures = 0
                     def skipped = 0
                     if (fileExists('target/surefire-reports')) {
-                        def summary = sh(script: '''
+                        def summary = sh(script: """
                             set +e
                             find target/surefire-reports -name 'TEST-*.xml' -print0 2>/dev/null |
                               xargs -0 grep -Eo 'tests="[0-9]+"|failures="[0-9]+"|skipped="[0-9]+"' |
                               sed -E 's/.*="([0-9]+)"/\\1/' | paste - - - |
-                              awk '{t += $1; f += $2; s += $3} END {print t","f","s}'
-                        ''', returnStdout: true).trim()
+                              awk '{t += \$1; f += \$2; s += \$3} END {print t","f","s}'
+                        """, returnStdout: true).trim()
                         if (summary) {
                             def parts = summary.split(',')
                             if (parts.size() == 3) {

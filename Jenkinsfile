@@ -433,7 +433,7 @@ CONSOLIDATED
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: '${WORKSPACE}/output/reports/ExtentReport_Consolidated.html,${WORKSPACE}/output/reports/api/*.html,${WORKSPACE}/output/reports/login/*.html,${WORKSPACE}/output/reports/search/*.html'
+                        attachmentsPattern: '${WORKSPACE}/output/reports/**/*.html'
                     )
                 }
             }

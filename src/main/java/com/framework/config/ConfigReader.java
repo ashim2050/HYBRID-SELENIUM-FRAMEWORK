@@ -82,6 +82,10 @@ public class ConfigReader {
         return get("reports.output.path", "output/reports/");
     }
 
+    public static String getReportsFileName() {
+        return get("reports.file.name", "ExtentReport.html");
+    }
+
     public static String getBrowser() {
         return get("browser", "chrome");
     }

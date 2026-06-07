@@ -39,24 +39,10 @@ public class TestListener implements ITestListener, ISuiteListener {
             return;
         }
 
-        String timestamp = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        String reportPath = ConfigReader.getReportsOutputPath()
-                + "ExtentReport_" + timestamp + ".html";
+        String reportFileName = ConfigReader.getReportsFileName();
+        String reportPath = ConfigReader.getReportsOutputPath() + reportFileName;
 
         java.io.File reportsDir = new java.io.File(ConfigReader.getReportsOutputPath());
-        if (reportsDir.exists() && reportsDir.isDirectory()) {
-            java.io.File[] oldReports = reportsDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".html"));
-            if (oldReports != null) {
-                for (java.io.File oldReport : oldReports) {
-                    try {
-                        oldReport.delete();
-                    } catch (Exception ignored) {
-                        logger.warn("Unable to delete old report file: {}", oldReport.getAbsolutePath());
-                    }
-                }
-            }
-        }
         reportsDir.mkdirs();
 
         ExtentSparkReporter sparkReporter = new ExtentSparkReporter(reportPath);

@@ -92,14 +92,13 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/ -Dsurefire.reportsDirectory=target/surefire-reports-api
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/ -Dreports.file.name=ExtentReport_api.html -Dsurefire.reportsDirectory=target/surefire-reports-api
                             """
                             stageResults['API Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['API Tests'] = 'FAILURE'
                             echo "API Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-api/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/api/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/api
@@ -113,14 +112,13 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/ -Dsurefire.reportsDirectory=target/surefire-reports-login
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/ -Dreports.file.name=ExtentReport_login.html -Dsurefire.reportsDirectory=target/surefire-reports-login
                             """
                             stageResults['Login Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['Login Tests'] = 'FAILURE'
                             echo "Login Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-login/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/login/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/login
@@ -134,14 +132,13 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/ -Dsurefire.reportsDirectory=target/surefire-reports-search
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/ -Dreports.file.name=ExtentReport_search.html -Dsurefire.reportsDirectory=target/surefire-reports-search
                             """
                             stageResults['Search Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['Search Tests'] = 'FAILURE'
                             echo "Search Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-search/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/search/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/search

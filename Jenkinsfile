@@ -186,14 +186,15 @@ pipeline {
                     sh '''
                     BUILD_NUM=${BUILD_NUMBER:-0}
                     GEN_DATE=$(date +'%Y-%m-%d %H:%M:%S')
+                    CONSOL_TIMESTAMP=$(date +'%Y%m%d_%H%M%S')
                     
                     # Find latest timestamped reports for each node
                     API_REPORT=$(find ${WORKSPACE}/output/reports/api -name "ExtentReport_api_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_api.html")
                     LOGIN_REPORT=$(find ${WORKSPACE}/output/reports/login -name "ExtentReport_login_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_login.html")
                     SEARCH_REPORT=$(find ${WORKSPACE}/output/reports/search -name "ExtentReport_search_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_search.html")
                     
-                    # Create consolidated report with variable substitution
-                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<CONSOL
+                    # Create consolidated report with variable substitution and timestamp in filename
+                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated_${CONSOL_TIMESTAMP}.html <<CONSOL
 <!DOCTYPE html>
 <html>
 <head>

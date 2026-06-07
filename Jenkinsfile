@@ -27,6 +27,11 @@ pipeline {
             choices: ['3', '4', '6'],
             description: 'Number of parallel nodes for test execution'
         )
+        choice(
+            name: 'BROWSER_MODE',
+            choices: ['headless', 'headed'],
+            description: 'Run tests in headless or headed browser mode'
+        )
         booleanParam(
             name: 'SEND_EMAIL',
             defaultValue: true,
@@ -75,79 +80,90 @@ pipeline {
         }
 
         stage('Parallel Test Execution') {
-            parallel {
-                stage('API Tests') {
-                    steps {
-                        script {
-                            echo "========== RUNNING API TESTS =========="
-                            sh '''
-                                cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=true -Dreports.output.path=output/reports/api/
-                            '''
-                        }
-                    }
-                    post {
-                        always {
-                            // Archive test results
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
-                            
-                            // Archive Extent reports for API tests only
-                            archiveArtifacts artifacts: 'output/reports/api/*.html', 
-                                            allowEmptyArchive: true
-                        }
-                        failure {
-                            echo "API Tests Failed"
-                        }
-                    }
-                }
+            steps {
+                script {
+                    echo "========== RUNNING PARALLEL TESTS =========="
 
-                stage('Login Tests') {
-                    steps {
-                        script {
-                            echo "========== RUNNING LOGIN TESTS =========="
-                            sh '''
-                                cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=true -Dreports.output.path=output/reports/login/
-                            '''
-                        }
-                    }
-                    post {
-                        always {
-                            // Archive test results
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
-                            
-                            // Archive Extent reports for Login tests only
-                            archiveArtifacts artifacts: 'output/reports/login/*.html', 
-                                            allowEmptyArchive: true
-                        }
-                        failure {
-                            echo "Login Tests Failed"
-                        }
-                    }
-                }
+                    def headlessMode = params.BROWSER_MODE == 'headless' ? 'true' : 'false'
+                    def stageResults = [:]
+                    def branches = [:]
 
-                stage('Search Tests') {
-                    steps {
-                        script {
-                            echo "========== RUNNING SEARCH TESTS =========="
-                            sh '''
+                    branches['API Tests'] = {
+                        try {
+                            sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=true -Dreports.output.path=output/reports/search/
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/
+                            """
+                            stageResults['API Tests'] = 'SUCCESS'
+                        } catch (err) {
+                            stageResults['API Tests'] = 'FAILURE'
+                            echo "API Tests Failed: ${err}"
+                        } finally {
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            archiveArtifacts artifacts: 'output/reports/api/*.html', allowEmptyArchive: true
+                            sh '''
+                                mkdir -p branch-output/output/reports/api
+                                cp -r output/reports/api branch-output/output/reports/api 2>/dev/null || true
+                                mkdir -p branch-output/target/surefire-reports-api
+                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-api/ 2>/dev/null || true
                             '''
+                            stash includes: 'branch-output/**', name: 'api-results', allowEmpty: true
                         }
                     }
-                    post {
-                        always {
-                            // Archive test results
+
+                    branches['Login Tests'] = {
+                        try {
+                            sh """
+                                cd ${WORKSPACE}
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/
+                            """
+                            stageResults['Login Tests'] = 'SUCCESS'
+                        } catch (err) {
+                            stageResults['Login Tests'] = 'FAILURE'
+                            echo "Login Tests Failed: ${err}"
+                        } finally {
                             junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
-                            
-                            // Archive Extent reports for Search tests only
-                            archiveArtifacts artifacts: 'output/reports/search/*.html', 
-                                            allowEmptyArchive: true
+                            archiveArtifacts artifacts: 'output/reports/login/*.html', allowEmptyArchive: true
+                            sh '''
+                                mkdir -p branch-output/output/reports/login
+                                cp -r output/reports/login branch-output/output/reports/login 2>/dev/null || true
+                                mkdir -p branch-output/target/surefire-reports-login
+                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-login/ 2>/dev/null || true
+                            '''
+                            stash includes: 'branch-output/**', name: 'login-results', allowEmpty: true
                         }
-                        failure {
-                            echo "Search Tests Failed"
+                    }
+
+                    branches['Search Tests'] = {
+                        try {
+                            sh """
+                                cd ${WORKSPACE}
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/
+                            """
+                            stageResults['Search Tests'] = 'SUCCESS'
+                        } catch (err) {
+                            stageResults['Search Tests'] = 'FAILURE'
+                            echo "Search Tests Failed: ${err}"
+                        } finally {
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            archiveArtifacts artifacts: 'output/reports/search/*.html', allowEmptyArchive: true
+                            sh '''
+                                mkdir -p branch-output/output/reports/search
+                                cp -r output/reports/search branch-output/output/reports/search 2>/dev/null || true
+                                mkdir -p branch-output/target/surefire-reports-search
+                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-search/ 2>/dev/null || true
+                            '''
+                            stash includes: 'branch-output/**', name: 'search-results', allowEmpty: true
                         }
+                    }
+
+                    parallel branches
+
+                    writeFile file: 'parallel-results.txt', text: stageResults.collect { k, v -> "${k}: ${v}" }.join('\n')
+                    if (stageResults.values().contains('FAILURE')) {
+                        currentBuild.result = 'UNSTABLE'
+                    } else {
+                        currentBuild.result = 'SUCCESS'
                     }
                 }
             }
@@ -157,20 +173,14 @@ pipeline {
             steps {
                 script {
                     echo "========== CONSOLIDATING TEST RESULTS =========="
+                    unstash 'api-results'
+                    unstash 'login-results'
+                    unstash 'search-results'
                     sh '''
-                        # Copy all test results to a central location
                         mkdir -p ${WORKSPACE}/consolidated-reports
-                        
-                        # Copy Extent Reports
-                        if [ -d "${REPORT_DIR}" ]; then
-                            cp -r ${REPORT_DIR}/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
-                        fi
-                        
-                        # Copy TestNG Reports
-                        if [ -d "${TEST_REPORT_DIR}" ]; then
-                            cp -r ${TEST_REPORT_DIR}/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
-                        fi
-                        
+                        mkdir -p target/surefire-reports
+                        cp -r branch-output/output/reports/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                        cp -r branch-output/target/surefire-reports-*/* target/surefire-reports/ 2>/dev/null || true
                         echo "Test results consolidated successfully"
                         ls -la ${WORKSPACE}/consolidated-reports/
                     '''
@@ -185,19 +195,31 @@ pipeline {
             steps {
                 script {
                     echo "========== SENDING EMAIL REPORT =========="
-                    
-                    def reportFiles = sh(
-                        script: 'find ${WORKSPACE}/output/reports -name "ExtentReport*.html" -type f | xargs ls -1t 2>/dev/null | head -1 || true',
-                        returnStdout: true
-                    ).trim()
-                    def reportRelativePath = reportFiles ? reportFiles.replaceFirst("^${WORKSPACE}/", "") : ''
-                    def reportLink = reportRelativePath ? "${env.BUILD_URL}artifact/${reportRelativePath}" : ''
-                    
+
+                    def parallelSummary = fileExists('parallel-results.txt') ? readFile('parallel-results.txt').trim() : 'Parallel stage summary not available.'
+                    def tests = 0
+                    def failures = 0
+                    def skipped = 0
+                    def reportDir = new File("${WORKSPACE}/target/surefire-reports")
+                    if (reportDir.exists()) {
+                        reportDir.eachFileMatch(~/TEST-.*\.xml/) { file ->
+                            try {
+                                def xml = new XmlParser().parse(file)
+                                tests += (xml.@tests ?: '0').toInteger()
+                                failures += (xml.@failures ?: '0').toInteger()
+                                skipped += (xml.@skipped ?: '0').toInteger()
+                            } catch (err) {
+                                echo "Failed to parse ${file.name}: ${err.message}"
+                            }
+                        }
+                    }
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def buildNumber = env.BUILD_NUMBER
                     def jobName = env.JOB_NAME
                     def testReportUrl = "${env.BUILD_URL}artifact/consolidated-reports/"
-                    
+                    def latestReport = sh(script: "find ${WORKSPACE}/output/reports -name '*.html' | sort | tail -1 || true", returnStdout: true).trim()
+                    def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replaceFirst('^${WORKSPACE}/', '')}" : ''
+
                     def mailBody = """
 <html>
 <head>
@@ -211,12 +233,13 @@ pipeline {
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         .footer { color: #666; font-size: 12px; margin-top: 15px; }
+        .summary-box { background: #f9f9f9; border: 1px solid #ddd; padding: 12px; margin-top: 12px; }
     </style>
 </head>
 <body>
     <div class="header">
         <h2>🧪 ${PROJECT_NAME} - Test Execution Report</h2>
-        <p>From: ashim.nayak2@gmail.com | To: ashimnayak2050@gmail.com</p>
+        <p>From: ${params.MAIL_CC ?: params.MAIL_TO} | To: ${params.MAIL_TO}</p>
     </div>
     <div class="content">
         <p><strong>Build Information:</strong></p>
@@ -242,21 +265,28 @@ pipeline {
                 <td>${currentBuild.durationString}</td>
             </tr>
         </table>
-        
-        <p><strong>Test Summary:</strong></p>
-        <ul>
-            <li>✅ API Tests - Parallel Execution</li>
-            <li>✅ Login Tests - Parallel Execution</li>
-            <li>✅ Search Tests - Parallel Execution</li>
-        </ul>
-        
+
+        <div class="summary-box">
+            <p><strong>Aggregated Test Counts:</strong></p>
+            <table>
+                <tr><th>Total Tests</th><td>${tests}</td></tr>
+                <tr><th>Failures</th><td>${failures}</td></tr>
+                <tr><th>Skipped</th><td>${skipped}</td></tr>
+            </table>
+        </div>
+
+        <div class="summary-box">
+            <p><strong>Parallel Node Results:</strong></p>
+            <pre>${parallelSummary}</pre>
+        </div>
+
         <p><strong>Reports:</strong></p>
         <ul>
             <li><a href="${testReportUrl}">View Consolidated Reports</a></li>
             <li><a href="${env.BUILD_URL}testReport/">View Test Report</a></li>
-            ${reportLink ? "<li><a href=\"${reportLink}\">View Latest Extent Report</a></li>" : ''}
+            ${reportLink ? "<li><a href=\"${reportLink}\">View Latest HTML Report</a></li>" : ''}
         </ul>
-        
+
         <div class="footer">
             <p>This is an automated email. Please do not reply to this email.</p>
             <p>Generated on ${new Date()}</p>
@@ -265,18 +295,17 @@ pipeline {
 </body>
 </html>
                     """
-                    
+
                     emailext(
                         subject: "${params.MAIL_SUBJECT} - Build #${buildNumber} - ${buildStatus}",
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: reportRelativePath
+                        attachmentsPattern: 'consolidated-reports/**/*.html,output/reports/**/*.html'
                     )
                 }
             }
         }
-    }
 
     post {
         always {

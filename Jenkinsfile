@@ -232,9 +232,9 @@ INDEX
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def buildNumber = env.BUILD_NUMBER
                     def jobName = env.JOB_NAME
-                    def testReportUrl = "${env.BUILD_URL}artifact/consolidated-reports/"
                     def latestReport = sh(script: "find ${WORKSPACE}/consolidated-reports -name '*.html' ! -name 'index.html' | sort | tail -1 || true", returnStdout: true).trim()
                     def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replaceFirst('^${WORKSPACE}/', '')}" : ''
+                    def latestReportHtml = reportLink ? "<li><a href='${reportLink}'>View Latest HTML Report</a></li>" : ''
 
                     def mailBody = """
 <html>
@@ -304,7 +304,7 @@ INDEX
         <ul>
             <li><a href="${env.BUILD_URL}artifact/consolidated-reports/index.html">View Consolidated Report Index</a></li>
             <li><a href="${env.BUILD_URL}testReport/">View Test Report</a></li>
-            ${reportLink ? "<li><a href=\"${reportLink}\">View Latest HTML Report</a></li>" : ''}
+            ${latestReportHtml}
         </ul>
 
         <div class="footer">

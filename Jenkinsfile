@@ -70,7 +70,7 @@ pipeline {
                         script {
                             echo "========== BUILDING PROJECT =========="
                             sh '''
-                                rm -rf ${WORKSPACE}/output/reports ${WORKSPACE}/consolidated-reports || true
+                                rm -rf ${WORKSPACE}/output/reports ${WORKSPACE}/consolidated-reports ${WORKSPACE}/branch-output || true
                                 mkdir -p ${WORKSPACE}/output/reports
                                 mkdir -p ${WORKSPACE}/consolidated-reports
                                 mvn clean compile -DskipTests
@@ -100,6 +100,7 @@ pipeline {
                             echo "API Tests Failed: ${err}"
                         } finally {
                                 sh '''
+                                rm -rf branch-output/output/reports/api || true
                                 mkdir -p branch-output/output/reports/api
                                 cp -r output/reports/api branch-output/output/reports/api 2>/dev/null || true
                             '''
@@ -119,6 +120,7 @@ pipeline {
                             echo "Login Tests Failed: ${err}"
                         } finally {
                                 sh '''
+                                rm -rf branch-output/output/reports/login || true
                                 mkdir -p branch-output/output/reports/login
                                 cp -r output/reports/login branch-output/output/reports/login 2>/dev/null || true
                             '''
@@ -138,6 +140,7 @@ pipeline {
                             echo "Search Tests Failed: ${err}"
                         } finally {
                                 sh '''
+                                rm -rf branch-output/output/reports/search || true
                                 mkdir -p branch-output/output/reports/search
                                 cp -r output/reports/search branch-output/output/reports/search 2>/dev/null || true
                             '''
@@ -305,7 +308,7 @@ INDEX
                         body: mailBody,
                         to: "${params.MAIL_TO}${params.MAIL_CC ? ',' + params.MAIL_CC : ''}",
                         mimeType: 'text/html',
-                        attachmentsPattern: 'consolidated-reports/**/*.html'
+                        attachmentsPattern: 'consolidated-reports/ExtentReport_Final.html,consolidated-reports/*/ExtentReport_*.html'
                     )
                 }
             }

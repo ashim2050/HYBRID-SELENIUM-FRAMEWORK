@@ -27,10 +27,10 @@ pipeline {
             choices: ['3', '4', '6'],
             description: 'Number of parallel nodes for test execution'
         )
-        choice(
-            name: 'BROWSER_MODE',
-            choices: ['headless', 'headed'],
-            description: 'Run tests in headless or headed browser mode'
+        booleanParam(
+            name: 'HEADLESS',
+            defaultValue: true,
+            description: 'Run browser in headless mode (unchecked = headed)'
         )
         booleanParam(
             name: 'SEND_EMAIL',
@@ -84,7 +84,7 @@ pipeline {
                 script {
                     echo "========== RUNNING PARALLEL TESTS =========="
 
-                    def headlessMode = params.BROWSER_MODE == 'headless' ? 'true' : 'false'
+                    def headlessMode = params.HEADLESS ? 'true' : 'false'
                     def stageResults = [:]
                     def branches = [:]
 
@@ -181,6 +181,22 @@ pipeline {
                         mkdir -p target/surefire-reports
                         cp -r branch-output/output/reports/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
                         cp -r branch-output/target/surefire-reports-*/* target/surefire-reports/ 2>/dev/null || true
+                        cat > ${WORKSPACE}/consolidated-reports/index.html <<'INDEX'
+<html>
+<head><title>Consolidated Extent Reports</title></head>
+<body>
+<h1>Consolidated Extent Reports</h1>
+<ul>
+INDEX
+                        find ${WORKSPACE}/consolidated-reports -name '*.html' ! -name 'index.html' | sort | while IFS= read -r f; do
+                          rel=${f#${WORKSPACE}/}
+                          echo "<li><a href=\"${rel}\">${rel}</a></li>" >> ${WORKSPACE}/consolidated-reports/index.html
+                        done
+                        cat >> ${WORKSPACE}/consolidated-reports/index.html <<'INDEX'
+</ul>
+</body>
+</html>
+INDEX
                         echo "Test results consolidated successfully"
                         ls -la ${WORKSPACE}/consolidated-reports/
                     '''
@@ -217,7 +233,7 @@ pipeline {
                     def buildNumber = env.BUILD_NUMBER
                     def jobName = env.JOB_NAME
                     def testReportUrl = "${env.BUILD_URL}artifact/consolidated-reports/"
-                    def latestReport = sh(script: "find ${WORKSPACE}/output/reports -name '*.html' | sort | tail -1 || true", returnStdout: true).trim()
+                    def latestReport = sh(script: "find ${WORKSPACE}/consolidated-reports -name '*.html' ! -name 'index.html' | sort | tail -1 || true", returnStdout: true).trim()
                     def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replaceFirst('^${WORKSPACE}/', '')}" : ''
 
                     def mailBody = """
@@ -261,6 +277,10 @@ pipeline {
                 <td>${params.PARALLEL_NODES}</td>
             </tr>
             <tr>
+                <th>Browser Mode</th>
+                <td>${params.HEADLESS ? 'headless' : 'headed'}</td>
+            </tr>
+            <tr>
                 <th>Execution Time</th>
                 <td>${currentBuild.durationString}</td>
             </tr>
@@ -282,7 +302,7 @@ pipeline {
 
         <p><strong>Reports:</strong></p>
         <ul>
-            <li><a href="${testReportUrl}">View Consolidated Reports</a></li>
+            <li><a href="${env.BUILD_URL}artifact/consolidated-reports/index.html">View Consolidated Report Index</a></li>
             <li><a href="${env.BUILD_URL}testReport/">View Test Report</a></li>
             ${reportLink ? "<li><a href=\"${reportLink}\">View Latest HTML Report</a></li>" : ''}
         </ul>

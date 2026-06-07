@@ -92,20 +92,20 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/ -Dsurefire.reportsDirectory=target/surefire-reports-api
                             """
                             stageResults['API Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['API Tests'] = 'FAILURE'
                             echo "API Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-api/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/api/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/api
                                 cp -r output/reports/api branch-output/output/reports/api 2>/dev/null || true
                                 mkdir -p branch-output/target/surefire-reports-api
-                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-api/ 2>/dev/null || true
+                                cp -r target/surefire-reports-api/* branch-output/target/surefire-reports-api/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/**', name: 'api-results', allowEmpty: true
                         }
@@ -115,20 +115,20 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/ -Dsurefire.reportsDirectory=target/surefire-reports-login
                             """
                             stageResults['Login Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['Login Tests'] = 'FAILURE'
                             echo "Login Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-login/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/login/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/login
                                 cp -r output/reports/login branch-output/output/reports/login 2>/dev/null || true
                                 mkdir -p branch-output/target/surefire-reports-login
-                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-login/ 2>/dev/null || true
+                                cp -r target/surefire-reports-login/* branch-output/target/surefire-reports-login/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/**', name: 'login-results', allowEmpty: true
                         }
@@ -138,20 +138,20 @@ pipeline {
                         try {
                             sh """
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/ -Dsurefire.reportsDirectory=target/surefire-reports-search
                             """
                             stageResults['Search Tests'] = 'SUCCESS'
                         } catch (err) {
                             stageResults['Search Tests'] = 'FAILURE'
                             echo "Search Tests Failed: ${err}"
                         } finally {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports-search/TEST-*.xml'
                             archiveArtifacts artifacts: 'output/reports/search/*.html', allowEmptyArchive: true
                             sh '''
                                 mkdir -p branch-output/output/reports/search
                                 cp -r output/reports/search branch-output/output/reports/search 2>/dev/null || true
                                 mkdir -p branch-output/target/surefire-reports-search
-                                cp -r target/surefire-reports/* branch-output/target/surefire-reports-search/ 2>/dev/null || true
+                                cp -r target/surefire-reports-search/* branch-output/target/surefire-reports-search/ 2>/dev/null || true
                             '''
                             stash includes: 'branch-output/**', name: 'search-results', allowEmpty: true
                         }
@@ -236,6 +236,7 @@ INDEX
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def buildNumber = env.BUILD_NUMBER
                     def jobName = env.JOB_NAME
+                    def reportGeneratedAt = sh(script: "date +'%Y-%m-%d %H:%M:%S'", returnStdout: true).trim()
                     def latestReport = sh(script: "find ${WORKSPACE}/consolidated-reports -name '*.html' ! -name 'index.html' | sort | tail -1 || true", returnStdout: true).trim()
                     def reportLink = latestReport ? "${env.BUILD_URL}artifact/${latestReport.replaceFirst('^${WORKSPACE}/', '')}" : ''
                     def latestReportHtml = reportLink ? "<li><a href='${reportLink}'>View Latest HTML Report</a></li>" : ''
@@ -313,7 +314,7 @@ INDEX
 
         <div class="footer">
             <p>This is an automated email. Please do not reply to this email.</p>
-            <p>Generated on ${new Date()}</p>
+            <p>Generated on ${reportGeneratedAt}</p>
         </div>
     </div>
 </body>
@@ -338,7 +339,7 @@ INDEX
                 echo "========== PIPELINE CLEANUP =========="
                 
                 // Archive all reports
-                archiveArtifacts artifacts: 'output/reports/**/*.html, target/surefire-reports/**/*.html',
+                archiveArtifacts artifacts: 'output/reports/**/*.html,target/surefire-reports/**/*.html',
                                 allowEmptyArchive: true,
                                 fingerprint: true
                 

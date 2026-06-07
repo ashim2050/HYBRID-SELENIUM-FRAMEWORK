@@ -104,10 +104,8 @@ pipeline {
                             sh '''
                                 mkdir -p branch-output/output/reports/api
                                 cp -r output/reports/api branch-output/output/reports/api 2>/dev/null || true
-                                mkdir -p branch-output/target/surefire-reports-api
-                                cp -r target/surefire-reports-api/* branch-output/target/surefire-reports-api/ 2>/dev/null || true
                             '''
-                            stash includes: 'branch-output/**', name: 'api-results', allowEmpty: true
+                            stash includes: 'branch-output/output/reports/**', name: 'api-results', allowEmpty: true
                         }
                     }
 
@@ -127,10 +125,8 @@ pipeline {
                             sh '''
                                 mkdir -p branch-output/output/reports/login
                                 cp -r output/reports/login branch-output/output/reports/login 2>/dev/null || true
-                                mkdir -p branch-output/target/surefire-reports-login
-                                cp -r target/surefire-reports-login/* branch-output/target/surefire-reports-login/ 2>/dev/null || true
                             '''
-                            stash includes: 'branch-output/**', name: 'login-results', allowEmpty: true
+                            stash includes: 'branch-output/output/reports/**', name: 'login-results', allowEmpty: true
                         }
                     }
 
@@ -150,10 +146,8 @@ pipeline {
                             sh '''
                                 mkdir -p branch-output/output/reports/search
                                 cp -r output/reports/search branch-output/output/reports/search 2>/dev/null || true
-                                mkdir -p branch-output/target/surefire-reports-search
-                                cp -r target/surefire-reports-search/* branch-output/target/surefire-reports-search/ 2>/dev/null || true
                             '''
-                            stash includes: 'branch-output/**', name: 'search-results', allowEmpty: true
+                            stash includes: 'branch-output/output/reports/**', name: 'search-results', allowEmpty: true
                         }
                     }
 
@@ -176,11 +170,11 @@ pipeline {
                     unstash 'api-results'
                     unstash 'login-results'
                     unstash 'search-results'
-                    sh '''
+                        sh '''
                         mkdir -p ${WORKSPACE}/consolidated-reports
-                        mkdir -p target/surefire-reports
                         cp -r branch-output/output/reports/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
-                        cp -r branch-output/target/surefire-reports-*/* target/surefire-reports/ 2>/dev/null || true
+                        # remove any XML files (TestNG/JUnit) from consolidated reports to keep only extent HTML
+                        find ${WORKSPACE}/consolidated-reports -name '*.xml' -delete || true
                         cat > ${WORKSPACE}/consolidated-reports/index.html <<'INDEX'
 <html>
 <head><title>Consolidated Extent Reports</title></head>
@@ -338,8 +332,8 @@ INDEX
             script {
                 echo "========== PIPELINE CLEANUP =========="
                 
-                // Archive all reports
-                archiveArtifacts artifacts: 'output/reports/**/*.html,target/surefire-reports/**/*.html',
+                // Archive only extent HTML reports
+                archiveArtifacts artifacts: 'consolidated-reports/**/*.html,output/reports/**/*.html',
                                 allowEmptyArchive: true,
                                 fingerprint: true
                 

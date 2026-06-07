@@ -187,7 +187,13 @@ pipeline {
                     BUILD_NUM=${BUILD_NUMBER:-0}
                     GEN_DATE=$(date +'%Y-%m-%d %H:%M:%S')
                     
-                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<'EOF'
+                    # Find latest timestamped reports for each node
+                    API_REPORT=$(find ${WORKSPACE}/output/reports/api -name "ExtentReport_api_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_api.html")
+                    LOGIN_REPORT=$(find ${WORKSPACE}/output/reports/login -name "ExtentReport_login_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_login.html")
+                    SEARCH_REPORT=$(find ${WORKSPACE}/output/reports/search -name "ExtentReport_search_*.html" -type f | sort | tail -1 | xargs basename 2>/dev/null || echo "ExtentReport_search.html")
+                    
+                    # Create consolidated report with variable substitution
+                    cat > ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html <<CONSOL
 <!DOCTYPE html>
 <html>
 <head>
@@ -213,20 +219,20 @@ pipeline {
 <body>
     <div class="header">
         <h1>🧪 Consolidated Extent Reports</h1>
-        <p>Build #BUILD_NUM - Generated on GEN_DATE</p>
+        <p>Build #${BUILD_NUM} - Generated on ${GEN_DATE}</p>
     </div>
 
     <div class="tabs" id="tabs"></div>
 
     <div class="content">
         <div id="api-content" class="tab-content active">
-            <iframe src="api/ExtentReport_api.html"></iframe>
+            <iframe src="api/${API_REPORT}"></iframe>
         </div>
         <div id="login-content" class="tab-content">
-            <iframe src="login/ExtentReport_login.html"></iframe>
+            <iframe src="login/${LOGIN_REPORT}"></iframe>
         </div>
         <div id="search-content" class="tab-content">
-            <iframe src="search/ExtentReport_search.html"></iframe>
+            <iframe src="search/${SEARCH_REPORT}"></iframe>
         </div>
     </div>
 
@@ -236,9 +242,9 @@ pipeline {
 
     <script>
         const reports = [
-            { id: 'api', name: 'API Tests', file: 'api/ExtentReport_api.html' },
-            { id: 'login', name: 'Login Tests', file: 'login/ExtentReport_login.html' },
-            { id: 'search', name: 'Search Tests', file: 'search/ExtentReport_search.html' }
+            { id: 'api', name: 'API Tests' },
+            { id: 'login', name: 'Login Tests' },
+            { id: 'search', name: 'Search Tests' }
         ];
 
         const tabsContainer = document.getElementById('tabs');
@@ -246,11 +252,11 @@ pipeline {
             const btn = document.createElement('button');
             btn.className = 'tab-btn' + (index === 0 ? ' active' : '');
             btn.textContent = report.name;
-            btn.onclick = () => switchTab(report.id);
+            btn.onclick = (e) => switchTab(report.id, e);
             tabsContainer.appendChild(btn);
         });
 
-        function switchTab(tabId) {
+        function switchTab(tabId, event) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(tabId + '-content').classList.add('active');
@@ -259,7 +265,7 @@ pipeline {
     </script>
 </body>
 </html>
-EOF
+CONSOL
 
                     echo "Consolidated report generated successfully"
                     ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html

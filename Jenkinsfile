@@ -326,6 +326,7 @@ INDEX
                 }
             }
         }
+    }
 
     post {
         always {
@@ -386,5 +387,4 @@ INDEX
             echo "========== BUILD UNSTABLE =========="
         }
     }
-}
 }

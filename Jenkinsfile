@@ -82,7 +82,7 @@ pipeline {
                             echo "========== RUNNING API TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/api/
+                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dreports.output.path=output/reports/api/
                             '''
                         }
                     }
@@ -107,7 +107,7 @@ pipeline {
                             echo "========== RUNNING LOGIN TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/login/
+                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dreports.output.path=output/reports/login/
                             '''
                         }
                     }
@@ -132,7 +132,7 @@ pipeline {
                             echo "========== RUNNING SEARCH TESTS =========="
                             sh '''
                                 cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=false -Dreports.output.path=output/reports/search/
+                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dreports.output.path=output/reports/search/
                             '''
                         }
                     }
@@ -187,7 +187,7 @@ pipeline {
                     echo "========== SENDING EMAIL REPORT =========="
                     
                     def reportFiles = sh(
-                        script: 'find ${WORKSPACE}/output/reports -name "ExtentReport*.html" -type f -exec stat -f "%m %N" {} \; | sort -rn | head -1 | cut -f2- -d" " || true',
+                        script: 'find ${WORKSPACE}/output/reports -name "ExtentReport*.html" -type f | xargs ls -1t 2>/dev/null | head -1 || true',
                         returnStdout: true
                     ).trim()
                     def reportRelativePath = reportFiles ? reportFiles.replaceFirst("^${WORKSPACE}/", "") : ''

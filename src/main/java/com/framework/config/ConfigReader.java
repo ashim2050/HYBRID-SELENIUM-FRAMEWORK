@@ -94,12 +94,7 @@ public class ConfigReader {
             logger.info("Using headless mode from system property: " + headlessValue);
             return headlessValue;
         }
-        
-        // Auto-detect Jenkins environment and force headless mode (if no override)
-        if (isRunningUnderJenkins()) {
-            logger.info("Running under Jenkins - forcing headless mode (set -Dheadless=false to override)");
-            return true;
-        }
+        // Use config file value when present; Jenkins no longer forces headless mode.
         return Boolean.parseBoolean(get("headless", "false"));
     }
 

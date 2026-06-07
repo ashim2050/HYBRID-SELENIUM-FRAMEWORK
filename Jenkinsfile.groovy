@@ -110,7 +110,6 @@ node('master') {
                             sh '''
                                 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
                                 export BROWSER=''' + params.BROWSER + '''
-                                export HEADLESS=''' + params.HEADLESS_MODE + '''
                                 export PARALLEL_THREADS=''' + params.PARALLEL_THREADS + '''
                                 export PATH=$JAVA_HOME/bin:$PATH
                                 
@@ -118,8 +117,7 @@ node('master') {
                                     -Dtest=''' + testName + ''' \
                                     -Dthreads=''' + params.PARALLEL_THREADS + ''' \
                                     -DsuiteXmlFile=src/test/resources/testng.xml \
-                                    -Dbrowser=${BROWSER} \
-                                    -Dheadless=${HEADLESS}
+                                    -Dbrowser=${BROWSER}
                             '''
                             
                             echo "✓ ${testName} completed"

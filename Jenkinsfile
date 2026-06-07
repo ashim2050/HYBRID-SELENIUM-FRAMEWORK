@@ -442,11 +442,11 @@ pipeline {
 
                 // Extract test stats from Extent Report HTML
                 const passCount = parseInt(doc.querySelector('[data-testcount-pass]')?.getAttribute('data-testcount-pass') || 
-                                          doc.body.textContent.match(/Passed:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+                                          doc.body.textContent.match(/Passed:\\s*(\\d+)/) ? RegExp.\$1 : 0) || 0;
                 const failCount = parseInt(doc.querySelector('[data-testcount-fail]')?.getAttribute('data-testcount-fail') || 
-                                          doc.body.textContent.match(/Failed:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+                                          doc.body.textContent.match(/Failed:\\s*(\\d+)/) ? RegExp.\$1 : 0) || 0;
                 const skipCount = parseInt(doc.querySelector('[data-testcount-skip]')?.getAttribute('data-testcount-skip') || 
-                                          doc.body.textContent.match(/Skipped:\s*(\d+)/) ? RegExp.\$1 : 0) || 0;
+                                          doc.body.textContent.match(/Skipped:\\s*(\\d+)/) ? RegExp.\$1 : 0) || 0;
 
                 return { pass: passCount, fail: failCount, skip: skipCount };
             } catch (e) {

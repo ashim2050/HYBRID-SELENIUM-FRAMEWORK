@@ -199,21 +199,19 @@ pipeline {
                 script {
                     echo "Consolidating test reports..."
                     sh '''
-                        mkdir -p ${WORKSPACE}/consolidated-reports
-                        
-                        # Merge all container reports
+                        mkdir -p ${REPORT_DIR}/consolidated-reports
+
+                        # Merge all container reports into ${REPORT_DIR}/consolidated-reports
                         find ${WORKSPACE}/containers-output -name "*.html" -o -name "*.xml" | \
                         while read file; do
-                            cp "$file" ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                            cp "$file" ${REPORT_DIR}/consolidated-reports/ 2>/dev/null || true
                         done
-                        
-                        # Add output/reports content
-                        if [ -d "${REPORT_DIR}" ]; then
-                            cp -r ${REPORT_DIR}/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
-                        fi
-                        
+
+                        # Add module report files from output/reports subfolders (avoid copying the consolidated folder)
+                        find ${REPORT_DIR} -mindepth 2 -maxdepth 2 -type f \( -name "*.html" -o -name "*.xml" \) -exec cp {} ${REPORT_DIR}/consolidated-reports/ \; 2>/dev/null || true
+
                         echo "✓ Reports consolidated"
-                        find ${WORKSPACE}/consolidated-reports -type f | wc -l
+                        find ${REPORT_DIR}/consolidated-reports -type f | wc -l
                     '''
                 }
             }
@@ -237,8 +235,8 @@ pipeline {
                         cc: params.MAIL_CC ?: '',
                         mimeType: 'text/html',
                         attachmentsPattern: '''
-                            consolidated-reports/**/*.html,
-                            consolidated-reports/**/*.xml
+                            output/reports/consolidated-reports/**/*.html,
+                            output/reports/consolidated-reports/**/*.xml
                         ''',
                         compressLog: true,
                         recipientProviders: [
@@ -258,14 +256,14 @@ pipeline {
                     echo "Archiving test results..."
                     
                     archiveArtifacts artifacts: '''
-                        consolidated-reports/**/*,
+                        output/reports/consolidated-reports/**/*,
                         containers-output/**/*,
                         output/reports/**/*
                     ''',
                     allowEmptyArchive: true,
                     fingerprint: true
                     
-                    junit testResults: 'consolidated-reports/**/*.xml',
+                    junit testResults: 'output/reports/consolidated-reports/**/*.xml',
                           allowEmptyResults: true
                     
                     echo "✓ Results archived"
@@ -306,7 +304,7 @@ pipeline {
             }
             
             // Publish test results
-            junit testResults: 'consolidated-reports/**/*.xml',
+            junit testResults: 'output/reports/consolidated-reports/**/*.xml',
                   allowEmptyResults: true,
                   skipPublishingChecks: true
         }
@@ -391,7 +389,7 @@ def buildEmailContent(buildStatus) {
             </ul>
             
             <p>
-                <a href="${env.BUILD_URL}artifact/consolidated-reports/" class="btn">View Reports</a>
+                <a href="${env.BUILD_URL}artifact/output/reports/consolidated-reports/" class="btn">View Reports</a>
             </p>
             
             <div class="footer">

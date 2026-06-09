@@ -22,22 +22,22 @@ properties([
             description: 'CC email addresses (comma-separated)'
         ),
         string(
-            name: 'MAIL_BCC',
-            defaultValue: '',
-            description: 'BCC email addresses (comma-separated)'
-        ),
-        string(
-            name: 'MAIL_SUBJECT',
-            defaultValue: 'Hybrid Selenium Framework - Test Execution Report',
-            description: 'Email subject'
-        ),
-        booleanParam(
-            name: 'SEND_EMAIL',
-            defaultValue: true,
-            description: 'Send email with reports'
-        ),
-        choice(
-            name: 'PARALLEL_THREADS',
+                emailext(
+                    subject: "${params.MAIL_SUBJECT} - Build #${buildNumber}",
+                    body: emailBody,
+                    to: params.MAIL_TO,
+                    cc: ccList,
+                    bcc: bccList,
+                    mimeType: 'text/html',
+                    attachmentsPattern: 'output/reports/consolidated-reports/**/*.html',
+                    replyTo: params.MAIL_TO,
+                    recipientProviders: [
+                        developers(),
+                        requestor(),
+                        brokenBuildSuspects()
+                    ],
+                    compressLog: true
+                )
             choices: ['3', '4', '6', '8'],
             description: 'Number of parallel execution threads'
         ),
@@ -149,31 +149,32 @@ node('master') {
         stage('Consolidate Reports') {
             echo "Consolidating test reports from all nodes..."
             sh '''
-                mkdir -p ${WORKSPACE}/consolidated-reports
-                
+                mkdir -p ${WORKSPACE}/output/reports/consolidated-reports
+
                 # Consolidate from slave node reports
                 find ${WORKSPACE}/slave-reports-* -type f -name "*.html" -o -name "*.xml" | while read file; do
-                    cp "$file" ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                    cp "$file" ${WORKSPACE}/output/reports/consolidated-reports/ 2>/dev/null || true
                 done
-                
-                # Consolidate from workspace reports
+
+                # Consolidate module report files into consolidated folder (avoid recursion)
                 if [ -d "${WORKSPACE}/output/reports" ]; then
-                    cp -r ${WORKSPACE}/output/reports/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                    find ${WORKSPACE}/output/reports -mindepth 2 -maxdepth 2 -type f \( -name "*.html" -o -name "*.xml" \) -exec cp {} ${WORKSPACE}/output/reports/consolidated-reports/ \; 2>/dev/null || true
                 fi
-                
+
                 if [ -d "${WORKSPACE}/target/surefire-reports" ]; then
-                    cp -r ${WORKSPACE}/target/surefire-reports/* ${WORKSPACE}/consolidated-reports/ 2>/dev/null || true
+                    find ${WORKSPACE}/target/surefire-reports -type f \( -name "*.xml" \) -exec cp {} ${WORKSPACE}/output/reports/consolidated-reports/ \; 2>/dev/null || true
                 fi
-                
+
                 echo "✓ Reports consolidated"
-                ls -lh ${WORKSPACE}/consolidated-reports/ | grep -E "\.html|\.xml" | wc -l
+                ls -lh ${WORKSPACE}/output/reports/consolidated-reports/ | grep -E "\.html|\.xml" | wc -l
             '''
         }
 
         stage('Generate HTML Report') {
             echo "Generating consolidated HTML report..."
             sh '''
-                cat > ${WORKSPACE}/consolidated-reports/index.html << 'EOF'
+                mkdir -p ${WORKSPACE}/output/reports/consolidated-reports
+                cat > ${WORKSPACE}/output/reports/consolidated-reports/index.html << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -250,7 +251,7 @@ EOF
                 echo "Sending test report via email..."
                 
                 def reportFiles = sh(
-                    script: '''find ${WORKSPACE}/consolidated-reports -name "*.html" | tr '\\n' ',' | sed 's/,$//' ''',
+                    script: '''find ${WORKSPACE}/output/reports/consolidated-reports -name "*.html" | tr '\n' ',' | sed 's/,$//' ''',
                     returnStdout: true
                 ).trim()
                 
@@ -266,7 +267,7 @@ EOF
                     cc: ccList,
                     bcc: bccList,
                     mimeType: 'text/html',
-                    attachmentsPattern: 'consolidated-reports/**/*.html',
+                    attachmentsPattern: 'output/reports/consolidated-reports/**/*.html',
                     replyTo: params.MAIL_TO,
                     recipientProviders: [
                         developers(),
@@ -284,15 +285,15 @@ EOF
             sh '''
                 # Archive all reports
                 tar -czf ${WORKSPACE}/test-reports-build-${BUILD_NUMBER}.tar.gz \
-                    consolidated-reports/ \
+                        output/reports/consolidated-reports/ \
                     target/surefire-reports/ \
                     output/reports/ \
                     2>/dev/null || true
             '''
             
             archiveArtifacts artifacts: '''
-                consolidated-reports/**/*.html,
-                consolidated-reports/**/*.xml,
+                    output/reports/consolidated-reports/**/*.html,
+                    output/reports/consolidated-reports/**/*.xml,
                 target/surefire-reports/**/*,
                 output/reports/**/*,
                 test-reports-build-*.tar.gz
@@ -300,7 +301,7 @@ EOF
             allowEmptyArchive: true,
             fingerprint: true
             
-            junit testResults: 'consolidated-reports/**/*.xml',
+                junit testResults: 'output/reports/consolidated-reports/**/*.xml',
                   allowEmptyResults: true
         }
 
@@ -401,7 +402,7 @@ def buildEmailBody() {
             </ul>
             
             <p>
-                <a href="${env.BUILD_URL}artifact/consolidated-reports/index.html" class="button">View Full Report</a>
+                <a href="${env.BUILD_URL}artifact/output/reports/consolidated-reports/index.html" class="button">View Full Report</a>
                 <a href="${env.BUILD_URL}testReport/" class="button">Test Report</a>
             </p>
             

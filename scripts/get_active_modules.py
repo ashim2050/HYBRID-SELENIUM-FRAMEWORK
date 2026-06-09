@@ -126,26 +126,24 @@ def load_master(master_path):
         return parse_sheet(zf, sheet_path, shared_strings)
 
 
+import re
+
+def normalize_module_name(name):
+    return re.sub(r'\s+', '', name.strip().lower())
+
+
 def main():
     master_path = sys.argv[1] if len(sys.argv) > 1 else 'Input/MasterConfig.xlsx'
     rows = load_master(master_path)
-    active_rows = []
+    active_modules = []
     for row in rows:
         module_name = row.get('ModuleName', '').strip()
         flag = row.get('ExecutionFlag', '').strip().lower()
         if module_name and flag == 'yes':
-            active_rows.append({
-                'ModuleName': module_name,
-                'TestClass': row.get('TestClass', '').strip(),
-                'ModuleFilePath': row.get('ModuleFilePath', '').strip(),
-                'SheetName': row.get('SheetName', '').strip(),
-                'ExecutionFlag': row.get('ExecutionFlag', '').strip()
-            })
-    output = {
-        'active_modules': [r['ModuleName'] for r in active_rows],
-        'active_rows': active_rows
-    }
-    print(json.dumps(output))
+            active_modules.append(normalize_module_name(module_name))
+
+    for module in active_modules:
+        print(module)
 
 
 if __name__ == '__main__':

@@ -88,12 +88,13 @@ pipeline {
                     def branches = [:]
                     def stashNames = []
 
-                    def activeJson = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true).trim()
-                    def activeInfo = new groovy.json.JsonSlurperClassic().parseText(activeJson)
-                    def activeModuleNames = activeInfo.active_modules.collect { it.toLowerCase().replaceAll(/\s+/, '') }
-                    def activeTestClasses = activeInfo.active_rows.collect { it.TestClass }
+                    def activeModuleNames = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true)
+                        .trim()
+                        .tokenize('\n')
+                        .collect { it.toLowerCase().replaceAll(/\s+/, '') }
+                        .findAll { it }
 
-                    echo "Active modules from MasterConfig.xlsx: ${activeInfo.active_modules}"
+                    echo "Active modules from MasterConfig.xlsx: ${activeModuleNames}"
 
                     def moduleConfigs = [
                         api: [display: 'API Tests', test: 'ApiDataDrivenTests', reportFolder: 'api', reportPrefix: 'ExtentReport_api.html', stashName: 'api-results'],
@@ -103,7 +104,7 @@ pipeline {
 
                     moduleConfigs.each { key, cfg ->
                         def alias = key.toString()
-                        def enabled = activeModuleNames.contains(alias) || activeTestClasses.contains(cfg.test)
+                        def enabled = activeModuleNames.contains(alias)
                         if (!enabled) {
                             echo "Skipping ${cfg.display}: not enabled in MasterConfig.xlsx"
                             return

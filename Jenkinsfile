@@ -76,55 +76,65 @@ pipeline {
         stage('Parallel Test Execution') {
             steps {
                 script {
-                    echo "========== RUNNING PARALLEL TESTS =========="
+                    echo "========== RUNNING PARALLEL TESTS (DYNAMIC) =========="
 
                     def headlessMode = params.HEADLESS ? 'true' : 'false'
                     def stageResults = [:]
                     def branches = [:]
                     def stashNames = []
 
-                    def activeModuleNames = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true)
-                        .trim()
-                        .tokenize('\n')
-                        .collect { it.toLowerCase().replaceAll(/\s+/, '') }
-                        .findAll { it }
+                    sh '''
+                    echo "========== DEBUG: MasterConfig.xlsx Content =========="
+                    md5sum ${WORKSPACE}/Input/MasterConfig.xlsx || echo "File not found"
+                    ls -lh ${WORKSPACE}/Input/MasterConfig.xlsx || echo "File not accessible"
+                    '''
 
-                    env.PARALLEL_NODES = activeModuleNames.size().toString()
-                    echo "Active modules from MasterConfig.xlsx: ${activeModuleNames}"
+                    // Fetch active modules with full metadata as JSON
+                    def metadataJson = sh(
+                        script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                        returnStdout: true
+                    ).trim()
 
-                    def moduleConfigs = [
-                        api: [display: 'API Tests', test: 'ApiDataDrivenTests', reportFolder: 'api', reportPrefix: 'ExtentReport_api.html', stashName: 'api-results'],
-                        login: [display: 'Login Tests', test: 'LoginTests', reportFolder: 'login', reportPrefix: 'ExtentReport_login.html', stashName: 'login-results'],
-                        search: [display: 'Search Tests', test: 'SearchTests', reportFolder: 'search', reportPrefix: 'ExtentReport_search.html', stashName: 'search-results']
-                    ]
+                    echo "========== Module metadata (JSON): =========="
+                    echo "${metadataJson}"
 
-                    moduleConfigs.each { key, cfg ->
-                        def alias = key.toString()
-                        def enabled = activeModuleNames.contains(alias)
-                        if (!enabled) {
-                            echo "Skipping ${cfg.display}: not enabled in MasterConfig.xlsx"
-                            return
-                        }
-
-                        def branchCfg = cfg
-                        stashNames << branchCfg.stashName
-                        branches[branchCfg.display] = {
+                    def modules = readJSON text: metadataJson
+                    
+                    env.PARALLEL_NODES = modules.size().toString()
+                    echo "========== Active modules count: ${modules.size()} =========="
+                    
+                    modules.each { module ->
+                        echo "Processing module: ${module.displayName} (${module.moduleName})"
+                        
+                        def moduleCfg = module
+                        stashNames << moduleCfg.stashName
+                        
+                        // Create one branch per active module
+                        branches[moduleCfg.displayName] = {
                             try {
+                                echo "========== Executing: ${moduleCfg.displayName} (Test: ${moduleCfg.testClass}) =========="
                                 sh """
                                     cd ${WORKSPACE}
-                                    mvn test -Dtest=${branchCfg.test} -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/${branchCfg.reportFolder}/ -Dreports.file.name=${branchCfg.reportPrefix} -Dsurefire.reportsDirectory=target/surefire-reports-${branchCfg.reportFolder}
+                                    mvn test \
+                                        -Dtest=${moduleCfg.testClass} \
+                                        -DsuiteXmlFile=src/test/resources/testng.xml \
+                                        -Dheadless=${headlessMode} \
+                                        -Dreports.output.path=output/reports/${moduleCfg.reportFolder}/ \
+                                        -Dreports.file.name=${moduleCfg.reportPrefix} \
+                                        -Dsurefire.reportsDirectory=target/surefire-reports-${moduleCfg.reportFolder}
                                 """
-                                stageResults[branchCfg.display] = 'SUCCESS'
+                                stageResults[moduleCfg.displayName] = 'SUCCESS'
+                                echo "✓ ${moduleCfg.displayName} completed successfully"
                             } catch (err) {
-                                stageResults[branchCfg.display] = 'FAILURE'
-                                echo "${branchCfg.display} Failed: ${err}"
+                                stageResults[moduleCfg.displayName] = 'FAILURE'
+                                echo "✗ ${moduleCfg.displayName} failed: ${err.message}"
                             } finally {
                                 sh """
-                                    rm -rf branch-output/output/reports/${branchCfg.reportFolder} || true
-                                    mkdir -p branch-output/output/reports/${branchCfg.reportFolder}
-                                    cp -r output/reports/${branchCfg.reportFolder}/* branch-output/output/reports/${branchCfg.reportFolder}/ 2>/dev/null || true
+                                    rm -rf branch-output/output/reports/${moduleCfg.reportFolder} || true
+                                    mkdir -p branch-output/output/reports/${moduleCfg.reportFolder}
+                                    cp -r output/reports/${moduleCfg.reportFolder}/* branch-output/output/reports/${moduleCfg.reportFolder}/ 2>/dev/null || true
                                 """
-                                stash includes: 'branch-output/output/reports/**', name: branchCfg.stashName, allowEmpty: true
+                                stash includes: 'branch-output/output/reports/**', name: moduleCfg.stashName, allowEmpty: true
                             }
                         }
                     }
@@ -137,11 +147,18 @@ pipeline {
                         return
                     }
 
+                    // Execute all active modules in parallel
                     parallel branches
 
                     writeFile file: 'parallel-results.txt', text: stageResults.collect { k, v -> "${k}: ${v}" }.join('\n')
                     if (stageResults.values().contains('FAILURE')) {
                         currentBuild.result = 'UNSTABLE'
+                    } else {
+                        currentBuild.result = 'SUCCESS'
+                    }
+                }
+            }
+        }
                     } else {
                         currentBuild.result = 'SUCCESS'
                     }

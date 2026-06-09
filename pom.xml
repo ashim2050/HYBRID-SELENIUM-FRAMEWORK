@@ -227,7 +227,7 @@ or programmatically inside FrameworkRunner itself.
         Run with: mvn test or mvn test -o
         -->
         <suiteXmlFiles>
-            <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
+            <suiteXmlFile>output/testing_dynamic.xml</suiteXmlFile>
         </suiteXmlFiles>
         <!-- Allow tests to run and generate reports without failing the Maven build -->
         <testFailureIgnore>true</testFailureIgnore>

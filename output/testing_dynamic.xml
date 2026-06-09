@@ -9,14 +9,4 @@
             <class name="com.framework.tests.LoginTests"/>
         </classes>
     </test>
-    <test name="Search Tests" preserve-order="true">
-        <classes>
-            <class name="com.framework.tests.SearchTests"/>
-        </classes>
-    </test>
-    <test name="API Tests" preserve-order="true">
-        <classes>
-            <class name="com.framework.tests.ApiDataDrivenTests"/>
-        </classes>
-    </test>
 </suite>

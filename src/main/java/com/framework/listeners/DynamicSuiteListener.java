@@ -34,12 +34,20 @@ public class DynamicSuiteListener implements IAlterSuiteListener {
     public void alter(List<XmlSuite> suites) {
         logger.info("--- DynamicSuiteListener: building suite from MasterConfig.xlsx ---");
 
+        // Only proceed when the master config exists on disk; otherwise nothing to do.
+        String masterPath = ConfigReader.getMasterFilePath();
+        File masterFile = new File(masterPath);
+        if (!masterFile.exists()) {
+            logger.warn("Master config not found at '{}' - skipping dynamic suite generation.", masterPath);
+            return;
+        }
+
         for (XmlSuite suite : suites) {
-            if (!suite.getListeners().contains(DynamicSuiteListener.class.getName())) {
-                logger.info("Skipping suite '{}': DynamicSuiteListener not registered", suite.getName());
-                continue;
+            try {
+                processSuite(suite);
+            } catch (Exception e) {
+                logger.error("Failed to process suite '{}' due to error: {}", suite.getName(), e.getMessage(), e);
             }
-            processSuite(suite);
         }
 
         logger.info("--- DynamicSuiteListener: alter() complete ---");

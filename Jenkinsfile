@@ -22,11 +22,6 @@ pipeline {
             defaultValue: 'Hybrid Selenium Framework - Test Execution Report',
             description: 'Email subject line'
         )
-        choice(
-            name: 'PARALLEL_NODES',
-            choices: ['3', '4', '6'],
-            description: 'Number of parallel nodes for test execution'
-        )
         booleanParam(
             name: 'HEADLESS',
             defaultValue: true,
@@ -94,6 +89,7 @@ pipeline {
                         .collect { it.toLowerCase().replaceAll(/\s+/, '') }
                         .findAll { it }
 
+                    env.PARALLEL_NODES = activeModuleNames.size().toString()
                     echo "Active modules from MasterConfig.xlsx: ${activeModuleNames}"
 
                     def moduleConfigs = [
@@ -181,15 +177,6 @@ pipeline {
             }
         }
 
-        stage('Generate Consolidated Report') {
-            steps {
-                script {
-                    echo "========== CONSOLIDATED REPORT GENERATION DISABLED =========="
-                    echo "The Python-based consolidated report generator has been removed per configuration."
-                }
-            }
-        }
-
         stage('Email Report') {
             when {
                 expression { params.SEND_EMAIL == true }
@@ -201,7 +188,7 @@ pipeline {
                     // Verify attachments exist
                     sh '''
                     echo "Verifying attachments exist:"
-                    ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated.html 2>/dev/null || echo "Consolidated report not found"
+                    find ${WORKSPACE}/output/reports -name "*.html" -print || echo "No report HTML files found"
                     ls -lh ${WORKSPACE}/output/reports/api/*.html 2>/dev/null || echo "API reports not found"
                     ls -lh ${WORKSPACE}/output/reports/login/*.html 2>/dev/null || echo "Login reports not found"
                     ls -lh ${WORKSPACE}/output/reports/search/*.html 2>/dev/null || echo "Search reports not found"
@@ -270,8 +257,8 @@ pipeline {
                 <td class="status-${buildStatus.toLowerCase()}">${buildStatus}</td>
             </tr>
             <tr>
-                <th>Parallel Nodes</th>
-                <td>${params.PARALLEL_NODES}</td>
+                <th>Active Modules</th>
+                <td>${env.PARALLEL_NODES ?: 'N/A'}</td>
             </tr>
             <tr>
                 <th>Browser Mode</th>

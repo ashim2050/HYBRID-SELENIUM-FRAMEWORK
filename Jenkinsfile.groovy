@@ -29,7 +29,7 @@ properties([
                     cc: ccList,
                     bcc: bccList,
                     mimeType: 'text/html',
-                    attachmentsPattern: 'output/reports/consolidated-reports/**/*.html',
+                    attachmentsPattern: 'output/reports/**/*.html',
                     replyTo: params.MAIL_TO,
                     recipientProviders: [
                         developers(),
@@ -146,38 +146,9 @@ node('master') {
             parallel parallelJobs
         }
 
-        stage('Consolidate Reports') {
-            echo "Consolidating test reports from all nodes..."
-            sh '''
-                mkdir -p ${WORKSPACE}/output/reports/consolidated-reports
-
-                # Consolidate from slave node reports
-                find ${WORKSPACE}/slave-reports-* -type f -name "*.html" -o -name "*.xml" | while read file; do
-                    cp "$file" ${WORKSPACE}/output/reports/consolidated-reports/ 2>/dev/null || true
-                done
-
-                # Consolidate module report files into consolidated folder (avoid recursion)
-                if [ -d "${WORKSPACE}/output/reports" ]; then
-                    find ${WORKSPACE}/output/reports -mindepth 2 -maxdepth 2 -type f \( -name "*.html" -o -name "*.xml" \) -exec cp {} ${WORKSPACE}/output/reports/consolidated-reports/ \; 2>/dev/null || true
-                fi
-
-                if [ -d "${WORKSPACE}/target/surefire-reports" ]; then
-                    find ${WORKSPACE}/target/surefire-reports -type f \( -name "*.xml" \) -exec cp {} ${WORKSPACE}/output/reports/consolidated-reports/ \; 2>/dev/null || true
-                fi
-
-                echo "✓ Reports consolidated"
-                ls -lh ${WORKSPACE}/output/reports/consolidated-reports/ | grep -E "\.html|\.xml" | wc -l
-            '''
+        stage('Preserve Module Reports') {
+            echo "Preserving module-specific report folders under output/reports"
         }
-
-        stage('Generate HTML Report') {
-            echo "Generating consolidated HTML report..."
-            sh '''
-                mkdir -p ${WORKSPACE}/output/reports/consolidated-reports
-                cat > ${WORKSPACE}/output/reports/consolidated-reports/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
     <title>Hybrid Selenium Framework - Test Report</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
@@ -251,7 +222,7 @@ EOF
                 echo "Sending test report via email..."
                 
                 def reportFiles = sh(
-                    script: '''find ${WORKSPACE}/output/reports/consolidated-reports -name "*.html" | tr '\n' ',' | sed 's/,$//' ''',
+                    script: '''find ${WORKSPACE}/output/reports -mindepth 2 -maxdepth 2 -name "*.html" | tr '\n' ',' | sed 's/,$//' ''',
                     returnStdout: true
                 ).trim()
                 
@@ -267,7 +238,7 @@ EOF
                     cc: ccList,
                     bcc: bccList,
                     mimeType: 'text/html',
-                    attachmentsPattern: 'output/reports/consolidated-reports/**/*.html',
+                    attachmentsPattern: 'output/reports/**/*.html',
                     replyTo: params.MAIL_TO,
                     recipientProviders: [
                         developers(),
@@ -285,15 +256,14 @@ EOF
             sh '''
                 # Archive all reports
                 tar -czf ${WORKSPACE}/test-reports-build-${BUILD_NUMBER}.tar.gz \
-                        output/reports/consolidated-reports/ \
+                        output/reports/ \
                     target/surefire-reports/ \
-                    output/reports/ \
                     2>/dev/null || true
             '''
             
             archiveArtifacts artifacts: '''
-                    output/reports/consolidated-reports/**/*.html,
-                    output/reports/consolidated-reports/**/*.xml,
+                    output/reports/**/*.html,
+                    output/reports/**/*.xml,
                 target/surefire-reports/**/*,
                 output/reports/**/*,
                 test-reports-build-*.tar.gz
@@ -301,7 +271,7 @@ EOF
             allowEmptyArchive: true,
             fingerprint: true
             
-                junit testResults: 'output/reports/consolidated-reports/**/*.xml',
+                junit testResults: 'output/reports/**/*.xml',
                   allowEmptyResults: true
         }
 
@@ -402,8 +372,7 @@ def buildEmailBody() {
             </ul>
             
             <p>
-                <a href="${env.BUILD_URL}artifact/output/reports/consolidated-reports/index.html" class="button">View Full Report</a>
-                <a href="${env.BUILD_URL}testReport/" class="button">Test Report</a>
+                    <a href="${env.BUILD_URL}artifact/output/reports/" class="button">View Module Reports</a>
             </p>
             
             <div class="footer">

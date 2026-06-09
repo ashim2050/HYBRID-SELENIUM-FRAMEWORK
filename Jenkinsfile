@@ -184,12 +184,8 @@ pipeline {
         stage('Generate Consolidated Report') {
             steps {
                 script {
-                    echo "========== GENERATING CONSOLIDATED EXTENT REPORT =========="
-                    sh '''
-                    python3 ${WORKSPACE}/generate_consolidated_report.py
-                    echo "✓ Consolidated report generated successfully"
-                    ls -lh ${WORKSPACE}/output/reports/ExtentReport_Consolidated_*.html
-                    '''
+                    echo "========== CONSOLIDATED REPORT GENERATION DISABLED =========="
+                    echo "The Python-based consolidated report generator has been removed per configuration."
                 }
             }
         }

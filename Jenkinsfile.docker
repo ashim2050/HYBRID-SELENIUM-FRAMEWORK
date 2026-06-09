@@ -40,25 +40,28 @@ pipeline {
         stage('Initialize') {
             steps {
                 script {
-                    def activeModuleNames = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true)
-                        .trim()
-                        .tokenize('\n')
-                        .collect { it.toLowerCase().replaceAll(/\s+/, '') }
-                        .findAll { it }
+                    // Fetch active modules with full metadata as JSON
+                    def metadataJson = sh(
+                        script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                        returnStdout: true
+                    ).trim()
 
-                    env.PARALLEL_CONTAINERS = activeModuleNames.size().toString()
-                    env.ACTIVE_MODULE_NAMES = activeModuleNames.join(',')
+                    def modules = readJSON text: metadataJson
+                    env.PARALLEL_CONTAINERS = modules.size().toString()
+                    env.ACTIVE_MODULE_NAMES = modules.collect { it.moduleName }.join(',')
 
                     echo """
                     ╔════════════════════════════════════════════════════════════╗
                     ║   ${PROJECT_NAME} - Docker Pipeline Started              ║
                     ║   Build: #${BUILD_NUMBER}                                 ║
                     ║   Parallel Containers: ${env.PARALLEL_CONTAINERS}      ║
+                    ║   Active Modules: ${env.ACTIVE_MODULE_NAMES}             ║
                     ╚════════════════════════════════════════════════════════════╝
                     """
                     
                     currentBuild.description = """
                     Docker Containers: ${env.PARALLEL_CONTAINERS}
+                    Active Modules: ${env.ACTIVE_MODULE_NAMES}
                     Build Docker Image: ${params.BUILD_DOCKER_IMAGE}
                     """
                 }
@@ -123,64 +126,60 @@ pipeline {
         stage('Run Tests in Parallel Containers') {
             steps {
                 script {
-                    echo "========== RUNNING PARALLEL DOCKER TESTS =========="
+                    echo "========== RUNNING PARALLEL DOCKER TESTS (DYNAMIC) =========="
 
-                    def activeModuleNames = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true)
-                        .trim()
-                        .tokenize('\n')
-                        .collect { it.toLowerCase().replaceAll(/\s+/, '') }
-                        .findAll { it }
+                    // Fetch active modules with full metadata as JSON
+                    def metadataJson = sh(
+                        script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                        returnStdout: true
+                    ).trim()
 
-                    echo "Active modules from MasterConfig.xlsx: ${activeModuleNames}"
+                    echo "Module metadata: ${metadataJson}"
+                    def modules = readJSON text: metadataJson
+                    
                     def stageResults = [:]
-
-                    def moduleConfigs = [
-                        api: [display: 'API Tests', test: 'ApiDataDrivenTests', reportFolder: 'api', stashName: 'api-results'],
-                        login: [display: 'Login Tests', test: 'LoginTests', reportFolder: 'login', stashName: 'login-results'],
-                        search: [display: 'Search Tests', test: 'SearchTests', reportFolder: 'search', stashName: 'search-results']
-                    ]
-
                     def branches = [:]
                     def stashNames = []
 
-                    moduleConfigs.each { key, cfg ->
-                        def alias = key.toString()
-                        def enabled = activeModuleNames.contains(alias)
-                        if (!enabled) {
-                            echo "Skipping ${cfg.display}: not enabled in MasterConfig.xlsx"
-                            return
-                        }
-
-                        def branchCfg = cfg
-                        stashNames << branchCfg.stashName
-                        branches[branchCfg.display] = {
+                    modules.each { module ->
+                        echo "Processing module: ${module.displayName} (${module.moduleName})"
+                        
+                        def moduleCfg = module
+                        stashNames << moduleCfg.stashName
+                        
+                        // Create one container per active module
+                        branches[moduleCfg.displayName] = {
                             try {
-                                echo "Starting ${branchCfg.display} in Docker Container..."
+                                echo "Starting ${moduleCfg.displayName} in Docker Container..."
                                 sh """
                                     docker run --rm \
-                                        --name ${alias}-test-${BUILD_NUMBER} \
+                                        --name ${moduleCfg.moduleName}-test-${BUILD_NUMBER} \
                                         -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
-                                        -e TEST_SUITE=${branchCfg.test} \
+                                        -e TEST_SUITE=${moduleCfg.testClass} \
                                         -e BUILD_NUMBER=${BUILD_NUMBER} \
                                         -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
                                         ${DOCKER_IMAGE} \
                                         mvn clean test \
-                                            -Dtest=${branchCfg.test} \
+                                            -Dtest=${moduleCfg.testClass} \
                                             -DsuiteXmlFile=src/test/resources/testng.xml \
+                                            -Dreports.output.path=output/reports/${moduleCfg.reportFolder}/ \
+                                            -Dreports.file.name=${moduleCfg.reportPrefix} \
+                                            -Dsurefire.reportsDirectory=target/surefire-reports-${moduleCfg.reportFolder} \
                                             -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
                                 """
 
-                                stageResults[branchCfg.display] = 'SUCCESS'
+                                stageResults[moduleCfg.displayName] = 'SUCCESS'
+                                echo "✓ ${moduleCfg.displayName} completed successfully"
                             } catch (err) {
-                                stageResults[branchCfg.display] = 'FAILURE'
-                                echo "${branchCfg.display} Failed: ${err}"
+                                stageResults[moduleCfg.displayName] = 'FAILURE'
+                                echo "✗ ${moduleCfg.displayName} failed: ${err.message}"
                             } finally {
                                 sh """
-                                    mkdir -p ${WORKSPACE}/containers-output/${branchCfg.reportFolder}
-                                    cp -r ${WORKSPACE}/target/surefire-reports/* \
-                                        ${WORKSPACE}/containers-output/${branchCfg.reportFolder}/ 2>/dev/null || true
+                                    mkdir -p ${WORKSPACE}/containers-output/${moduleCfg.reportFolder}
+                                    cp -r ${WORKSPACE}/output/reports/${moduleCfg.reportFolder}/* \
+                                        ${WORKSPACE}/containers-output/${moduleCfg.reportFolder}/ 2>/dev/null || true
                                 """
-                                stash includes: 'containers-output/**', name: branchCfg.stashName, allowEmpty: true
+                                stash includes: 'containers-output/**', name: moduleCfg.stashName, allowEmpty: true
                             }
                         }
                     }
@@ -193,6 +192,7 @@ pipeline {
                         return
                     }
 
+                    // Execute all active modules in parallel Docker containers
                     parallel branches
                 }
             }
@@ -207,7 +207,15 @@ pipeline {
                     echo "Preparing email report..."
                     
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
-                    def emailBody = buildEmailContent(buildStatus)
+                    
+                    // Fetch active modules for email content
+                    def metadataJson = sh(
+                        script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                        returnStdout: true
+                    ).trim()
+                    def modules = readJSON text: metadataJson
+                    
+                    def emailBody = buildEmailContent(buildStatus, modules)
                     
                     emailext(
                         subject: "${PROJECT_NAME} - Build #${BUILD_NUMBER} - ${buildStatus}",
@@ -254,17 +262,18 @@ pipeline {
         stage('Cleanup') {
             steps {
                 script {
-                    echo "Cleaning up Docker containers..."
+                    echo "Cleaning up Docker containers and test artifacts..."
                     sh '''
-                        # Stop and remove any remaining containers
-                        docker ps -a --filter "name=api-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
-                        docker ps -a --filter "name=login-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
-                        docker ps -a --filter "name=search-test-${BUILD_NUMBER}" -q | xargs -r docker rm -f
+                        # Stop and remove any containers from this build
+                        docker ps -a --filter "label=build-${BUILD_NUMBER}" -q 2>/dev/null | xargs -r docker rm -f || true
+                        
+                        # Generic cleanup: remove containers with -test-BUILD_NUMBER pattern
+                        docker ps -a --filter "name=-test-${BUILD_NUMBER}" -q 2>/dev/null | xargs -r docker rm -f || true
                         
                         # Cleanup workspace
                         rm -rf ${WORKSPACE}/containers-output
                         
-                        echo "✓ Cleanup completed"
+                        echo "✓ Docker cleanup completed"
                     '''
                 }
             }
@@ -307,7 +316,9 @@ pipeline {
     }
 }
 
-def buildEmailContent(buildStatus) {
+def buildEmailContent(buildStatus, modules) {
+    def testList = modules.collect { m -> "<li>🐳 ${m.displayName} - Docker Container</li>" }.join('\n')
+    
     return """
     <html>
     <head>
@@ -359,20 +370,23 @@ def buildEmailContent(buildStatus) {
                     <td>Parallel Containers</td>
                     <td>${env.PARALLEL_CONTAINERS}</td>
                 </tr>
+                <tr>
+                    <td>Active Modules</td>
+                    <td>${modules.collect { it.displayName }.join(', ')}</td>
+                </tr>
             </table>
             
-            <h3>Test Execution Summary</h3>
+            <h3>Test Execution Summary (${modules.size()} Module${modules.size() > 1 ? 's' : ''})</h3>
             <ul>
-                <li>🐳 API Tests - Docker Container</li>
-                <li>🐳 Login Tests - Docker Container</li>
-                <li>🐳 Search Tests - Docker Container</li>
+                ${testList}
             </ul>
             
             <p>
-                    <a href="${env.BUILD_URL}artifact/output/reports/" class="btn">View Reports</a>
+                <a href="${env.BUILD_URL}artifact/output/reports/" class="btn">View Reports</a>
+            </p>
             
             <div class="footer">
-                <p>Automated Docker-based test execution pipeline</p>
+                <p>Automated Docker-based test execution pipeline (Dynamic Modules)</p>
                 <p>Generated: ${new Date()}</p>
             </div>
         </div>

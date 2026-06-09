@@ -98,43 +98,84 @@ pipeline {
                     echo "========== Module metadata (JSON): =========="
                     echo "${metadataJson}"
 
-                    def modules = readJSON text: metadataJson
+                    // Parse JSON using jq to extract module count
+                    def moduleCount = sh(
+                        script: "echo '${metadataJson}' | jq '. | length'",
+                        returnStdout: true
+                    ).trim().toInteger()
                     
-                    env.PARALLEL_NODES = modules.size().toString()
-                    echo "========== Active modules count: ${modules.size()} =========="
+                    env.PARALLEL_NODES = moduleCount.toString()
+                    echo "========== Active modules count: ${moduleCount} =========="
                     
-                    modules.each { module ->
-                        echo "Processing module: ${module.displayName} (${module.moduleName})"
+                    // Save metadata to file for processing in parallel blocks
+                    writeFile file: 'module-metadata.json', text: metadataJson
+                    
+                    // Create branches for each module using jq to extract details
+                    for (int i = 0; i < moduleCount; i++) {
+                        def moduleData = sh(
+                            script: "echo '${metadataJson}' | jq '.[${i}]'",
+                            returnStdout: true
+                        ).trim()
                         
-                        def moduleCfg = module
-                        stashNames << moduleCfg.stashName
+                        def moduleName = sh(
+                            script: "echo '${moduleData}' | jq -r '.moduleName'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def displayName = sh(
+                            script: "echo '${moduleData}' | jq -r '.displayName'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def testClass = sh(
+                            script: "echo '${moduleData}' | jq -r '.testClass'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def reportFolder = sh(
+                            script: "echo '${moduleData}' | jq -r '.reportFolder'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def reportPrefix = sh(
+                            script: "echo '${moduleData}' | jq -r '.reportPrefix'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def stashName = sh(
+                            script: "echo '${moduleData}' | jq -r '.stashName'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        echo "Processing module: ${displayName} (${moduleName})"
+                        stashNames << stashName
                         
                         // Create one branch per active module
-                        branches[moduleCfg.displayName] = {
+                        branches[displayName] = {
                             try {
-                                echo "========== Executing: ${moduleCfg.displayName} (Test: ${moduleCfg.testClass}) =========="
+                                echo "========== Executing: ${displayName} (Test: ${testClass}) =========="
                                 sh """
                                     cd ${WORKSPACE}
                                     mvn test \
-                                        -Dtest=${moduleCfg.testClass} \
+                                        -Dtest=${testClass} \
                                         -DsuiteXmlFile=src/test/resources/testng.xml \
                                         -Dheadless=${headlessMode} \
-                                        -Dreports.output.path=output/reports/${moduleCfg.reportFolder}/ \
-                                        -Dreports.file.name=${moduleCfg.reportPrefix} \
-                                        -Dsurefire.reportsDirectory=target/surefire-reports-${moduleCfg.reportFolder}
+                                        -Dreports.output.path=output/reports/${reportFolder}/ \
+                                        -Dreports.file.name=${reportPrefix} \
+                                        -Dsurefire.reportsDirectory=target/surefire-reports-${reportFolder}
                                 """
-                                stageResults[moduleCfg.displayName] = 'SUCCESS'
-                                echo "✓ ${moduleCfg.displayName} completed successfully"
+                                stageResults[displayName] = 'SUCCESS'
+                                echo "✓ ${displayName} completed successfully"
                             } catch (err) {
-                                stageResults[moduleCfg.displayName] = 'FAILURE'
-                                echo "✗ ${moduleCfg.displayName} failed: ${err.message}"
+                                stageResults[displayName] = 'FAILURE'
+                                echo "✗ ${displayName} failed: ${err.message}"
                             } finally {
                                 sh """
-                                    rm -rf branch-output/output/reports/${moduleCfg.reportFolder} || true
-                                    mkdir -p branch-output/output/reports/${moduleCfg.reportFolder}
-                                    cp -r output/reports/${moduleCfg.reportFolder}/* branch-output/output/reports/${moduleCfg.reportFolder}/ 2>/dev/null || true
+                                    rm -rf branch-output/output/reports/${reportFolder} || true
+                                    mkdir -p branch-output/output/reports/${reportFolder}
+                                    cp -r output/reports/${reportFolder}/* branch-output/output/reports/${reportFolder}/ 2>/dev/null || true
                                 """
-                                stash includes: 'branch-output/output/reports/**', name: moduleCfg.stashName, allowEmpty: true
+                                stash includes: 'branch-output/output/reports/**', name: "${stashName}", allowEmpty: true
                             }
                         }
                     }

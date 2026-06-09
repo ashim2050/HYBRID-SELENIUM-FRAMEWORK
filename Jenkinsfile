@@ -159,12 +159,6 @@ pipeline {
                 }
             }
         }
-                    } else {
-                        currentBuild.result = 'SUCCESS'
-                    }
-                }
-            }
-        }
 
         stage('Collect Test Results') {
             steps {

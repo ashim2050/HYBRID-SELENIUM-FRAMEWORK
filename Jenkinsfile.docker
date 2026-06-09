@@ -46,9 +46,19 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    def modules = readJSON text: metadataJson
-                    env.PARALLEL_CONTAINERS = modules.size().toString()
-                    env.ACTIVE_MODULE_NAMES = modules.collect { it.moduleName }.join(',')
+                    // Parse JSON using jq
+                    def moduleCount = sh(
+                        script: "echo '${metadataJson}' | jq '. | length'",
+                        returnStdout: true
+                    ).trim().toInteger()
+                    
+                    def moduleNames = sh(
+                        script: "echo '${metadataJson}' | jq -r '.[].moduleName' | tr '\n' ','  | sed 's/,$//' ",
+                        returnStdout: true
+                    ).trim()
+                    
+                    env.PARALLEL_CONTAINERS = moduleCount.toString()
+                    env.ACTIVE_MODULE_NAMES = moduleNames
 
                     echo """
                     ╔════════════════════════════════════════════════════════════╗
@@ -135,51 +145,85 @@ pipeline {
                     ).trim()
 
                     echo "Module metadata: ${metadataJson}"
-                    def modules = readJSON text: metadataJson
+                    
+                    // Parse module count for iteration
+                    def moduleCount = sh(
+                        script: "echo '${metadataJson}' | jq '. | length'",
+                        returnStdout: true
+                    ).trim().toInteger()
                     
                     def stageResults = [:]
                     def branches = [:]
                     def stashNames = []
-
-                    modules.each { module ->
-                        echo "Processing module: ${module.displayName} (${module.moduleName})"
+                    
+                    // Iterate through modules using index and jq
+                    for (int i = 0; i < moduleCount; i++) {
+                        def displayName = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].displayName'",
+                            returnStdout: true
+                        ).trim()
                         
-                        def moduleCfg = module
-                        stashNames << moduleCfg.stashName
+                        def moduleName = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].moduleName'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def testClass = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].testClass'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def reportFolder = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].reportFolder'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def reportPrefix = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].reportPrefix'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def stashNameVal = sh(
+                            script: "echo '${metadataJson}' | jq -r '.[${i}].stashName'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        echo "Processing module: ${displayName} (${moduleName})"
+                        stashNames << stashNameVal
                         
                         // Create one container per active module
-                        branches[moduleCfg.displayName] = {
+                        branches[displayName] = {
                             try {
-                                echo "Starting ${moduleCfg.displayName} in Docker Container..."
+                                echo "Starting ${displayName} in Docker Container..."
                                 sh """
                                     docker run --rm \
-                                        --name ${moduleCfg.moduleName}-test-${BUILD_NUMBER} \
+                                        --name ${moduleName}-test-${BUILD_NUMBER} \
                                         -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
-                                        -e TEST_SUITE=${moduleCfg.testClass} \
+                                        -e TEST_SUITE=${testClass} \
                                         -e BUILD_NUMBER=${BUILD_NUMBER} \
                                         -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
                                         ${DOCKER_IMAGE} \
                                         mvn clean test \
-                                            -Dtest=${moduleCfg.testClass} \
+                                            -Dtest=${testClass} \
                                             -DsuiteXmlFile=src/test/resources/testng.xml \
-                                            -Dreports.output.path=output/reports/${moduleCfg.reportFolder}/ \
-                                            -Dreports.file.name=${moduleCfg.reportPrefix} \
-                                            -Dsurefire.reportsDirectory=target/surefire-reports-${moduleCfg.reportFolder} \
+                                            -Dreports.output.path=output/reports/${reportFolder}/ \
+                                            -Dreports.file.name=${reportPrefix} \
+                                            -Dsurefire.reportsDirectory=target/surefire-reports-${reportFolder} \
                                             -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
                                 """
 
-                                stageResults[moduleCfg.displayName] = 'SUCCESS'
-                                echo "✓ ${moduleCfg.displayName} completed successfully"
+                                stageResults[displayName] = 'SUCCESS'
+                                echo "✓ ${displayName} completed successfully"
                             } catch (err) {
-                                stageResults[moduleCfg.displayName] = 'FAILURE'
-                                echo "✗ ${moduleCfg.displayName} failed: ${err.message}"
+                                stageResults[displayName] = 'FAILURE'
+                                echo "✗ ${displayName} failed: ${err.message}"
                             } finally {
                                 sh """
-                                    mkdir -p ${WORKSPACE}/containers-output/${moduleCfg.reportFolder}
-                                    cp -r ${WORKSPACE}/output/reports/${moduleCfg.reportFolder}/* \
-                                        ${WORKSPACE}/containers-output/${moduleCfg.reportFolder}/ 2>/dev/null || true
+                                    mkdir -p ${WORKSPACE}/containers-output/${reportFolder}
+                                    cp -r ${WORKSPACE}/output/reports/${reportFolder}/* \
+                                        ${WORKSPACE}/containers-output/${reportFolder}/ 2>/dev/null || true
                                 """
-                                stash includes: 'containers-output/**', name: moduleCfg.stashName, allowEmpty: true
+                                stash includes: 'containers-output/**', name: "${stashNameVal}", allowEmpty: true
                             }
                         }
                     }
@@ -213,7 +257,15 @@ pipeline {
                         script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
                         returnStdout: true
                     ).trim()
-                    def modules = readJSON text: metadataJson
+                    
+                    // Extract module names for email
+                    def moduleDisplayNames = sh(
+                        script: "echo '${metadataJson}' | jq -r '.[].displayName' | tr '\n' ',' | sed 's/,$//' ",
+                        returnStdout: true
+                    ).trim()
+                    
+                    def modules = [:]
+                    modules['displayNames'] = moduleDisplayNames.split(',')
                     
                     def emailBody = buildEmailContent(buildStatus, modules)
                     
@@ -317,7 +369,7 @@ pipeline {
 }
 
 def buildEmailContent(buildStatus, modules) {
-    def testList = modules.collect { m -> "<li>🐳 ${m.displayName} - Docker Container</li>" }.join('\n')
+    def testList = modules['displayNames'].collect { name -> "<li>🐳 ${name.trim()} - Docker Container</li>" }.join('\n')
     
     return """
     <html>
@@ -372,11 +424,11 @@ def buildEmailContent(buildStatus, modules) {
                 </tr>
                 <tr>
                     <td>Active Modules</td>
-                    <td>${modules.collect { it.displayName }.join(', ')}</td>
+                    <td>${modules['displayNames'].join(', ')}</td>
                 </tr>
             </table>
             
-            <h3>Test Execution Summary (${modules.size()} Module${modules.size() > 1 ? 's' : ''})</h3>
+            <h3>Test Execution Summary (${modules['displayNames'].size()} Module${modules['displayNames'].size() > 1 ? 's' : ''})</h3>
             <ul>
                 ${testList}
             </ul>

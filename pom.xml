@@ -227,7 +227,10 @@ or programmatically inside FrameworkRunner itself.
         Run with: mvn test or mvn test -o
         -->
         <suiteXmlFiles>
-            <suiteXmlFile>output/testing_dynamic.xml</suiteXmlFile>
+            <!-- Use the static classpath testng.xml which registers DynamicSuiteListener.
+                 DynamicSuiteListener will alter the suite at runtime and populate tests
+                 from Input/MasterConfig.xlsx, keeping the generation step before execution. -->
+            <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
         </suiteXmlFiles>
         <!-- Allow tests to run and generate reports without failing the Maven build -->
         <testFailureIgnore>true</testFailureIgnore>

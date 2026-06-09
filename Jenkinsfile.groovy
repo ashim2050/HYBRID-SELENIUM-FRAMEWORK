@@ -100,14 +100,51 @@ node('master') {
                 returnStdout: true
             ).trim()
             
-            def modules = readJSON text: metadataJson
-            echo "Active modules from MasterConfig.xlsx: ${modules.collect { it.displayName }.join(', ')}"
+            // Parse JSON using jq to extract module count and names
+            def moduleCount = sh(
+                script: "echo '${metadataJson}' | jq '. | length'",
+                returnStdout: true
+            ).trim().toInteger()
+            
+            def moduleNames = sh(
+                script: "echo '${metadataJson}' | jq -r '.[].displayName' | tr '\n' ',' | sed 's/,$//' ",
+                returnStdout: true
+            ).trim()
+            
+            echo "Active modules from MasterConfig.xlsx: ${moduleNames}"
             
             def parallelJobs = [:]
             
-            modules.eachWithIndex { module, index ->
-                def moduleCfg = module
-                def nodeLabel = nodeLabels[index % nodeLabels.size()]
+            // Create parallel jobs using index-based jq extraction
+            for (int i = 0; i < moduleCount; i++) {
+                def displayName = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[${i}].displayName'",
+                    returnStdout: true
+                ).trim()
+                
+                def moduleCfg = [:]
+                moduleCfg['testClass'] = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[${i}].testClass'",
+                    returnStdout: true
+                ).trim()
+                
+                moduleCfg['moduleName'] = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[${i}].moduleName'",
+                    returnStdout: true
+                ).trim()
+                
+                moduleCfg['reportFolder'] = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[${i}].reportFolder'",
+                    returnStdout: true
+                ).trim()
+                
+                moduleCfg['reportPrefix'] = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[${i}].reportPrefix'",
+                    returnStdout: true
+                ).trim()
+                
+                moduleCfg['displayName'] = displayName
+                def nodeLabel = nodeLabels[i % nodeLabels.size()]
                 
                 parallelJobs[moduleCfg.displayName] = {
                     node(nodeLabel) {
@@ -246,7 +283,15 @@ EOF
                     script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
                     returnStdout: true
                 ).trim()
-                def modules = readJSON text: metadataJson
+                
+                // Extract module names for email
+                def moduleDisplayNames = sh(
+                    script: "echo '${metadataJson}' | jq -r '.[].displayName' | tr '\n' ',' | sed 's/,$//' ",
+                    returnStdout: true
+                ).trim()
+                
+                def modules = [:]
+                modules['displayNames'] = moduleDisplayNames.split(',')
                 
                 def emailBody = buildEmailBody(modules)
                 
@@ -330,7 +375,7 @@ EOF
 }
 
 def buildEmailBody(modules) {
-    def testList = modules.collect { m -> "<li>✅ ${m.displayName}</li>" }.join('\n')
+    def testList = modules['displayNames'].collect { name -> "<li>✅ ${name.trim()}</li>" }.join('\n')
     
     def content = """
     <html>

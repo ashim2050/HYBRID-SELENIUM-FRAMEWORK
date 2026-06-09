@@ -86,65 +86,58 @@ pipeline {
                     def headlessMode = params.HEADLESS ? 'true' : 'false'
                     def stageResults = [:]
                     def branches = [:]
+                    def stashNames = []
 
-                    branches['API Tests'] = {
-                        try {
-                            sh """
-                                cd ${WORKSPACE}
-                                mvn test -Dtest=ApiDataDrivenTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/api/ -Dreports.file.name=ExtentReport_api.html -Dsurefire.reportsDirectory=target/surefire-reports-api
-                            """
-                            stageResults['API Tests'] = 'SUCCESS'
-                        } catch (err) {
-                            stageResults['API Tests'] = 'FAILURE'
-                            echo "API Tests Failed: ${err}"
-                        } finally {
-                                sh '''
-                                rm -rf branch-output/output/reports/api || true
-                                mkdir -p branch-output/output/reports/api
-                                cp -r output/reports/api/* branch-output/output/reports/api/ 2>/dev/null || true
-                            '''
-                            stash includes: 'branch-output/output/reports/**', name: 'api-results', allowEmpty: true
+                    def activeJson = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true).trim()
+                    def activeInfo = new groovy.json.JsonSlurperClassic().parseText(activeJson)
+                    def activeModuleNames = activeInfo.active_modules.collect { it.toLowerCase().replaceAll(/\s+/, '') }
+                    def activeTestClasses = activeInfo.active_rows.collect { it.TestClass }
+
+                    echo "Active modules from MasterConfig.xlsx: ${activeInfo.active_modules}"
+
+                    def moduleConfigs = [
+                        api: [display: 'API Tests', test: 'ApiDataDrivenTests', reportFolder: 'api', reportPrefix: 'ExtentReport_api.html', stashName: 'api-results'],
+                        login: [display: 'Login Tests', test: 'LoginTests', reportFolder: 'login', reportPrefix: 'ExtentReport_login.html', stashName: 'login-results'],
+                        search: [display: 'Search Tests', test: 'SearchTests', reportFolder: 'search', reportPrefix: 'ExtentReport_search.html', stashName: 'search-results']
+                    ]
+
+                    moduleConfigs.each { key, cfg ->
+                        def alias = key.toString()
+                        def enabled = activeModuleNames.contains(alias) || activeTestClasses.contains(cfg.test)
+                        if (!enabled) {
+                            echo "Skipping ${cfg.display}: not enabled in MasterConfig.xlsx"
+                            return
+                        }
+
+                        def branchCfg = cfg
+                        stashNames << branchCfg.stashName
+                        branches[branchCfg.display] = {
+                            try {
+                                sh """
+                                    cd ${WORKSPACE}
+                                    mvn test -Dtest=${branchCfg.test} -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/${branchCfg.reportFolder}/ -Dreports.file.name=${branchCfg.reportPrefix} -Dsurefire.reportsDirectory=target/surefire-reports-${branchCfg.reportFolder}
+                                """
+                                stageResults[branchCfg.display] = 'SUCCESS'
+                            } catch (err) {
+                                stageResults[branchCfg.display] = 'FAILURE'
+                                echo "${branchCfg.display} Failed: ${err}"
+                            } finally {
+                                sh """
+                                    rm -rf branch-output/output/reports/${branchCfg.reportFolder} || true
+                                    mkdir -p branch-output/output/reports/${branchCfg.reportFolder}
+                                    cp -r output/reports/${branchCfg.reportFolder}/* branch-output/output/reports/${branchCfg.reportFolder}/ 2>/dev/null || true
+                                """
+                                stash includes: 'branch-output/output/reports/**', name: branchCfg.stashName, allowEmpty: true
+                            }
                         }
                     }
 
-                    branches['Login Tests'] = {
-                        try {
-                            sh """
-                                cd ${WORKSPACE}
-                                mvn test -Dtest=LoginTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/login/ -Dreports.file.name=ExtentReport_login.html -Dsurefire.reportsDirectory=target/surefire-reports-login
-                            """
-                            stageResults['Login Tests'] = 'SUCCESS'
-                        } catch (err) {
-                            stageResults['Login Tests'] = 'FAILURE'
-                            echo "Login Tests Failed: ${err}"
-                        } finally {
-                                sh '''
-                                rm -rf branch-output/output/reports/login || true
-                                mkdir -p branch-output/output/reports/login
-                                cp -r output/reports/login/* branch-output/output/reports/login/ 2>/dev/null || true
-                            '''
-                            stash includes: 'branch-output/output/reports/**', name: 'login-results', allowEmpty: true
-                        }
-                    }
+                    writeFile file: 'active-stashes.txt', text: stashNames.join('\n')
 
-                    branches['Search Tests'] = {
-                        try {
-                            sh """
-                                cd ${WORKSPACE}
-                                mvn test -Dtest=SearchTests -DsuiteXmlFile=src/test/resources/testng.xml -Dheadless=${headlessMode} -Dreports.output.path=output/reports/search/ -Dreports.file.name=ExtentReport_search.html -Dsurefire.reportsDirectory=target/surefire-reports-search
-                            """
-                            stageResults['Search Tests'] = 'SUCCESS'
-                        } catch (err) {
-                            stageResults['Search Tests'] = 'FAILURE'
-                            echo "Search Tests Failed: ${err}"
-                        } finally {
-                                sh '''
-                                rm -rf branch-output/output/reports/search || true
-                                mkdir -p branch-output/output/reports/search
-                                cp -r output/reports/search/* branch-output/output/reports/search/ 2>/dev/null || true
-                            '''
-                            stash includes: 'branch-output/output/reports/**', name: 'search-results', allowEmpty: true
-                        }
+                    if (branches.isEmpty()) {
+                        echo 'No active modules configured in MasterConfig.xlsx. Skipping parallel test execution.'
+                        currentBuild.result = 'SUCCESS'
+                        return
                     }
 
                     parallel branches
@@ -163,10 +156,18 @@ pipeline {
             steps {
                 script {
                     echo "========== COLLECTING TEST REPORTS =========="
-                    unstash 'api-results'
-                    unstash 'login-results'
-                    unstash 'search-results'
-                        sh '''
+
+                    def stashList = []
+                    if (fileExists('active-stashes.txt')) {
+                        stashList = readFile('active-stashes.txt').trim().split('\n').findAll { it }
+                    }
+
+                    stashList.each { stashName ->
+                        echo "Unstashing ${stashName}"
+                        unstash stashName
+                    }
+
+                    sh '''
                         rm -rf ${WORKSPACE}/output/reports/api ${WORKSPACE}/output/reports/login ${WORKSPACE}/output/reports/search || true
                         mkdir -p ${WORKSPACE}/output/reports/api ${WORKSPACE}/output/reports/login ${WORKSPACE}/output/reports/search
                         cp -r branch-output/output/reports/api/* ${WORKSPACE}/output/reports/api/ 2>/dev/null || true

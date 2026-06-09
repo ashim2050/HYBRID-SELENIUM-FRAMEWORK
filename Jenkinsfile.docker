@@ -117,98 +117,78 @@ pipeline {
         }
 
         stage('Run Tests in Parallel Containers') {
-            parallel {
-                stage('API Tests - Container 1') {
-                    steps {
-                        script {
-                            echo "Starting API Tests in Docker Container..."
-                            sh '''
-                                docker run --rm \
-                                    --name api-test-${BUILD_NUMBER} \
-                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
-                                    -e TEST_SUITE=ApiDataDrivenTests \
-                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
-                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
-                                    ${DOCKER_IMAGE} \
-                                    mvn clean test \
-                                        -Dtest=ApiDataDrivenTests \
-                                        -DsuiteXmlFile=src/test/resources/testng.xml \
-                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
-                            '''
-                        }
-                    }
-                    post {
-                        always {
-                            echo "✓ API Tests container completed"
-                            sh '''
-                                # Copy reports from container workspace
-                                cp -r ${WORKSPACE}/target/surefire-reports/* \
-                                      ${WORKSPACE}/containers-output/api-reports/ 2>/dev/null || true
-                            '''
-                        }
-                    }
-                }
+            steps {
+                script {
+                    echo "========== RUNNING PARALLEL DOCKER TESTS =========="
 
-                stage('Login Tests - Container 2') {
-                    steps {
-                        script {
-                            echo "Starting Login Tests in Docker Container..."
-                            sh '''
-                                docker run --rm \
-                                    --name login-test-${BUILD_NUMBER} \
-                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
-                                    -e TEST_SUITE=LoginTests \
-                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
-                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
-                                    ${DOCKER_IMAGE} \
-                                    mvn clean test \
-                                        -Dtest=LoginTests \
-                                        -DsuiteXmlFile=src/test/resources/testng.xml \
-                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
-                            '''
-                        }
-                    }
-                    post {
-                        always {
-                            echo "✓ Login Tests container completed"
-                            sh '''
-                                # Copy reports
-                                cp -r ${WORKSPACE}/target/surefire-reports/* \
-                                      ${WORKSPACE}/containers-output/login-reports/ 2>/dev/null || true
-                            '''
-                        }
-                    }
-                }
+                    def activeJson = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true).trim()
+                    def activeInfo = new groovy.json.JsonSlurperClassic().parseText(activeJson)
+                    def activeModuleNames = activeInfo.active_modules.collect { it.toLowerCase().replaceAll(/\s+/, '') }
+                    def activeTestClasses = activeInfo.active_rows.collect { it.TestClass }
 
-                stage('Search Tests - Container 3') {
-                    steps {
-                        script {
-                            echo "Starting Search Tests in Docker Container..."
-                            sh '''
-                                docker run --rm \
-                                    --name search-test-${BUILD_NUMBER} \
-                                    -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
-                                    -e TEST_SUITE=SearchTests \
-                                    -e BUILD_NUMBER=${BUILD_NUMBER} \
-                                    -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
-                                    ${DOCKER_IMAGE} \
-                                    mvn clean test \
-                                        -Dtest=SearchTests \
-                                        -DsuiteXmlFile=src/test/resources/testng.xml \
-                                        -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
-                            '''
+                    echo "Active modules from MasterConfig.xlsx: ${activeInfo.active_modules}"
+                    def stageResults = [:]
+
+                    def moduleConfigs = [
+                        api: [display: 'API Tests', test: 'ApiDataDrivenTests', reportFolder: 'api', stashName: 'api-results'],
+                        login: [display: 'Login Tests', test: 'LoginTests', reportFolder: 'login', stashName: 'login-results'],
+                        search: [display: 'Search Tests', test: 'SearchTests', reportFolder: 'search', stashName: 'search-results']
+                    ]
+
+                    def branches = [:]
+                    def stashNames = []
+
+                    moduleConfigs.each { key, cfg ->
+                        def alias = key.toString()
+                        def enabled = activeModuleNames.contains(alias) || activeTestClasses.contains(cfg.test)
+                        if (!enabled) {
+                            echo "Skipping ${cfg.display}: not enabled in MasterConfig.xlsx"
+                            return
+                        }
+
+                        def branchCfg = cfg
+                        stashNames << branchCfg.stashName
+                        branches[branchCfg.display] = {
+                            try {
+                                echo "Starting ${branchCfg.display} in Docker Container..."
+                                sh """
+                                    docker run --rm \
+                                        --name ${alias}-test-${BUILD_NUMBER} \
+                                        -v ${WORKSPACE}:${CONTAINER_WORKSPACE} \
+                                        -e TEST_SUITE=${branchCfg.test} \
+                                        -e BUILD_NUMBER=${BUILD_NUMBER} \
+                                        -e REPORT_DIR=${CONTAINER_WORKSPACE}/output/reports \
+                                        ${DOCKER_IMAGE} \
+                                        mvn clean test \
+                                            -Dtest=${branchCfg.test} \
+                                            -DsuiteXmlFile=src/test/resources/testng.xml \
+                                            -Dmaven.repo.local=${CONTAINER_WORKSPACE}/.m2
+                                """
+
+                                stageResults[branchCfg.display] = 'SUCCESS'
+                            } catch (err) {
+                                stageResults[branchCfg.display] = 'FAILURE'
+                                echo "${branchCfg.display} Failed: ${err}"
+                            } finally {
+                                sh """
+                                    mkdir -p ${WORKSPACE}/containers-output/${branchCfg.reportFolder}
+                                    cp -r ${WORKSPACE}/target/surefire-reports/* \
+                                        ${WORKSPACE}/containers-output/${branchCfg.reportFolder}/ 2>/dev/null || true
+                                """
+                                stash includes: 'containers-output/**', name: branchCfg.stashName, allowEmpty: true
+                            }
                         }
                     }
-                    post {
-                        always {
-                            echo "✓ Search Tests container completed"
-                            sh '''
-                                # Copy reports
-                                cp -r ${WORKSPACE}/target/surefire-reports/* \
-                                      ${WORKSPACE}/containers-output/search-reports/ 2>/dev/null || true
-                            '''
-                        }
+
+                    writeFile file: 'active-stashes-docker.txt', text: stashNames.join('\n')
+
+                    if (branches.isEmpty()) {
+                        echo 'No active Docker modules configured in MasterConfig.xlsx. Skipping test execution.'
+                        currentBuild.result = 'SUCCESS'
+                        return
                     }
+
+                    parallel branches
                 }
             }
         }

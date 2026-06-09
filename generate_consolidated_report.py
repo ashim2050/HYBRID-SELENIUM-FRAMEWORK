@@ -8,21 +8,88 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-def generate_consolidated_report(workspace, build_num, api_report, login_report, search_report):
-    """Generate the consolidated HTML report"""
-    
+def generate_consolidated_report(workspace, build_num):
+    """Generate the consolidated HTML report for only existing module reports"""
+
+    reports_dir = os.path.join(workspace, 'output', 'reports')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     gen_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    output_file = os.path.join(workspace, 'output', 'reports', f'ExtentReport_Consolidated_{timestamp}.html')
-    
+    output_file = os.path.join(reports_dir, f'ExtentReport_Consolidated_{timestamp}.html')
+
+    module_reports = []
+    if os.path.isdir(reports_dir):
+        for entry in sorted(os.listdir(reports_dir)):
+            entry_path = os.path.join(reports_dir, entry)
+            if os.path.isdir(entry_path):
+                html_files = [f for f in sorted(os.listdir(entry_path)) if f.endswith('.html')]
+                if html_files:
+                    module_reports.append({
+                        'module': entry,
+                        'report': html_files[-1]
+                    })
+
+    if not module_reports:
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"UTF-8\"> 
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Consolidated Extent Reports Dashboard</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; background: #f4f6f8; color: #333; }}
+        .container {{ max-width: 800px; margin: 100px auto; padding: 30px; background: white; border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,0.08); }}
+        h1 {{ margin-bottom: 20px; }}
+        p {{ font-size: 16px; line-height: 1.6; }}
+    </style>
+</head>
+<body>
+    <div class=\"container\">
+        <h1>No Executed Module Reports Found</h1>
+        <p>The pipeline did not generate any module reports under <strong>output/reports/</strong>.</p>
+        <p>Confirm that <strong>Input/MasterConfig.xlsx</strong> has active modules with <strong>ExecutionFlag = Yes</strong>.</p>
+        <p>Generated on <strong>{gen_date}</strong>.</p>
+    </div>
+</body>
+</html>"""
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, 'w') as f:
+            f.write(html_content)
+        print(f"Consolidated report generated successfully: {output_file}")
+        return output_file
+
+    cards_html = []
+    chart_data = []
+    for idx, item in enumerate(module_reports):
+        module_label = item['module'].replace('-', ' ').replace('_', ' ').title()
+        report_path = f"{item['module']}/{item['report']}"
+        cards_html.append(f"""
+            <div class=\"report-card\">
+                <div class=\"report-header\"><div class=\"icon\">🧪</div><h2>{module_label}</h2></div>
+                <div class=\"report-body\">
+                    <div class=\"chart-container\"><canvas id=\"chart{idx}\"></canvas></div>
+                    <div class=\"stats-row\" id=\"stats{idx}\"><div class=\"loading\">Loading...</div></div>
+                    <div class=\"report-file\">📄 {item['report']}</div>
+                    <a href=\"{report_path}\" target=\"_blank\" class=\"open-btn\">📊 View Full Report</a>
+                </div>
+            </div>
+        """)
+        chart_data.append({
+            'id': f'chart{idx}',
+            'statsId': f'stats{idx}',
+            'file': report_path,
+            'label': module_label
+        })
+
+    reports_html = '\n'.join(cards_html)
+    data_json = json.dumps(chart_data)
+
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset=\"UTF-8\"> 
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
     <title>Consolidated Extent Reports Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 40px 20px; }}
@@ -56,53 +123,21 @@ def generate_consolidated_report(workspace, build_num, api_report, login_report,
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
+    <div class=\"container\">
+        <div class=\"header\">
             <h1>🧪 Test Execution Report Dashboard</h1>
             <p><strong>Build #{build_num}</strong></p>
             <p>Generated on <strong>{gen_date}</strong></p>
         </div>
-        <div class="reports-grid">
-            <div class="report-card">
-                <div class="report-header"><div class="icon">🔌</div><h2>API Tests</h2></div>
-                <div class="report-body">
-                    <div class="chart-container"><canvas id="apiChart"></canvas></div>
-                    <div class="stats-row" id="apiStats"><div class="loading">Loading...</div></div>
-                    <div class="report-file">📄 {api_report}</div>
-                    <a href="api/{api_report}" target="_blank" class="open-btn">📊 View Full Report</a>
-                </div>
-            </div>
-            <div class="report-card">
-                <div class="report-header"><div class="icon">🔐</div><h2>Login Tests</h2></div>
-                <div class="report-body">
-                    <div class="chart-container"><canvas id="loginChart"></canvas></div>
-                    <div class="stats-row" id="loginStats"><div class="loading">Loading...</div></div>
-                    <div class="report-file">📄 {login_report}</div>
-                    <a href="login/{login_report}" target="_blank" class="open-btn">📊 View Full Report</a>
-                </div>
-            </div>
-            <div class="report-card">
-                <div class="report-header"><div class="icon">🔍</div><h2>Search Tests</h2></div>
-                <div class="report-body">
-                    <div class="chart-container"><canvas id="searchChart"></canvas></div>
-                    <div class="stats-row" id="searchStats"><div class="loading">Loading...</div></div>
-                    <div class="report-file">📄 {search_report}</div>
-                    <a href="search/{search_report}" target="_blank" class="open-btn">📊 View Full Report</a>
-                </div>
-            </div>
-        </div>
-        <div class="footer">
-            <p>Click "View Full Report" to see all test details</p>
-            <div><span class="stat-item">Build: {build_num}</span><span class="stat-item">Date: {gen_date}</span></div>
+        <div class=\"reports-grid\">{reports_html}</div>
+        <div class=\"footer\">
+            <p>Click \"View Full Report\" to see all test details</p>
+            <div><span class=\"stat-item\">Build: {build_num}</span><span class=\"stat-item\">Date: {gen_date}</span></div>
         </div>
     </div>
     <script>
-        const reports = [
-            {{ id: 'api', name: 'API Tests', file: 'api/{api_report}' }},
-            {{ id: 'login', name: 'Login Tests', file: 'login/{login_report}' }},
-            {{ id: 'search', name: 'Search Tests', file: 'search/{search_report}' }}
-        ];
-        
+        const reports = {data_json};
+
         async function loadReportStats(reportInfo) {{
             try {{
                 const response = await fetch(reportInfo.file);
@@ -114,11 +149,11 @@ def generate_consolidated_report(workspace, build_num, api_report, login_report,
                 const skipCount = parseInt(doc.querySelector('[data-testcount-skip]')?.getAttribute('data-testcount-skip') || 0) || 0;
                 return {{ pass: passCount, fail: failCount, skip: skipCount }};
             }} catch (e) {{
-                console.error('Error loading report:', reportInfo.id, e);
+                console.error('Error loading report:', reportInfo.file, e);
                 return {{ pass: 0, fail: 0, skip: 0 }};
             }}
         }}
-        
+
         function createChart(canvasId, stats) {{
             const ctx = document.getElementById(canvasId).getContext('2d');
             new Chart(ctx, {{
@@ -135,54 +170,31 @@ def generate_consolidated_report(workspace, build_num, api_report, login_report,
                 options: {{ responsive: true, maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom', labels: {{ font: {{ size: 11 }} }} }} }} }}
             }});
         }}
-        
+
         function updateStats(elementId, stats) {{
             document.getElementById(elementId).innerHTML = 
-                '<div class="stat-box pass"><div class="stat-label">Pass</div><div class="stat-value">' + stats.pass + '</div></div>' +
-                '<div class="stat-box fail"><div class="stat-label">Fail</div><div class="stat-value">' + stats.fail + '</div></div>' +
-                '<div class="stat-box skip"><div class="stat-label">Skip</div><div class="stat-value">' + stats.skip + '</div></div>';
+                '<div class=\"stat-box pass\"><div class=\"stat-label\">Pass</div><div class=\"stat-value\">' + stats.pass + '</div></div>' +
+                '<div class=\"stat-box fail\"><div class=\"stat-label\">Fail</div><div class=\"stat-value\">' + stats.fail + '</div></div>' +
+                '<div class=\"stat-box skip\"><div class=\"stat-label\">Skip</div><div class=\"stat-value\">' + stats.skip + '</div></div>';
         }}
-        
+
         reports.forEach(async (r) => {{
             const s = await loadReportStats(r);
-            createChart(r.id + 'Chart', s);
-            updateStats(r.id + 'Stats', s);
+            createChart(r.id, s);
+            updateStats(r.statsId, s);
         }});
     </script>
 </body>
 </html>"""
 
-    # Create output directory if needed
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    
-    # Write the HTML file
     with open(output_file, 'w') as f:
         f.write(html_content)
-    
+
     print(f"Consolidated report generated successfully: {output_file}")
     return output_file
 
 if __name__ == '__main__':
     workspace = os.environ.get('WORKSPACE', '/Users/ashimnayak/.jenkins/workspace/Hybrid-Selenium-Parallel-Execution')
     build_num = os.environ.get('BUILD_NUMBER', '0')
-    
-    # Find latest timestamped reports
-    reports_dir = os.path.join(workspace, 'output', 'reports')
-    
-    def find_latest_report(module_dir):
-        """Find latest timestamped report in a directory"""
-        path = Path(os.path.join(reports_dir, module_dir))
-        if not path.exists():
-            return f"ExtentReport_{module_dir}.html"
-        files = sorted(path.glob(f"ExtentReport_{module_dir}_*.html"))
-        return files[-1].name if files else f"ExtentReport_{module_dir}.html"
-    
-    api_report = find_latest_report('api')
-    login_report = find_latest_report('login')
-    search_report = find_latest_report('search')
-    
-    print(f"API Report: {api_report}")
-    print(f"Login Report: {login_report}")
-    print(f"Search Report: {search_report}")
-    
-    generate_consolidated_report(workspace, build_num, api_report, login_report, search_report)
+    generate_consolidated_report(workspace, build_num)

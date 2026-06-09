@@ -93,18 +93,26 @@ node('master') {
 
         stage('Parallel Test Execution') {
             def nodeLabels = ['test-node-1', 'test-node-2', 'test-node-3']
-            def tests = ['ApiDataDrivenTests', 'LoginTests', 'SearchTests']
+            
+            // Fetch active modules with full metadata as JSON
+            def metadataJson = sh(
+                script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                returnStdout: true
+            ).trim()
+            
+            def modules = readJSON text: metadataJson
+            echo "Active modules from MasterConfig.xlsx: ${modules.collect { it.displayName }.join(', ')}"
             
             def parallelJobs = [:]
             
-            for (int i = 0; i < tests.size(); i++) {
-                def testName = tests[i]
-                def nodeLabel = nodeLabels[i % nodeLabels.size()]
+            modules.eachWithIndex { module, index ->
+                def moduleCfg = module
+                def nodeLabel = nodeLabels[index % nodeLabels.size()]
                 
-                parallelJobs[testName] = {
+                parallelJobs[moduleCfg.displayName] = {
                     node(nodeLabel) {
                         try {
-                            echo "========== Executing ${testName} on ${nodeLabel} =========="
+                            echo "========== Executing ${moduleCfg.displayName} (${moduleCfg.testClass}) on ${nodeLabel} =========="
                             checkout scm
                             
                             sh '''
@@ -114,22 +122,24 @@ node('master') {
                                 export PATH=$JAVA_HOME/bin:$PATH
                                 
                                 mvn test \
-                                    -Dtest=''' + testName + ''' \
+                                    -Dtest=''' + moduleCfg.testClass + ''' \
                                     -Dthreads=''' + params.PARALLEL_THREADS + ''' \
                                     -DsuiteXmlFile=src/test/resources/testng.xml \
+                                    -Dreports.output.path=output/reports/''' + moduleCfg.reportFolder + '''/ \
+                                    -Dreports.file.name=''' + moduleCfg.reportPrefix + ''' \
                                     -Dbrowser=${BROWSER}
                             '''
                             
-                            echo "✓ ${testName} completed"
+                            echo "✓ ${moduleCfg.displayName} completed"
                         } catch (Exception e) {
-                            echo "✗ ${testName} failed: ${e.message}"
+                            echo "✗ ${moduleCfg.displayName} failed: ${e.message}"
                             currentBuild.result = 'UNSTABLE'
                         } finally {
                             // Archive reports from slave node
                             sh '''
-                                mkdir -p ''' + workspace + '''/slave-reports-''' + testName + '''
-                                if [ -d "output/reports" ]; then
-                                    cp -r output/reports/* ''' + workspace + '''/slave-reports-''' + testName + '''/ || true
+                                mkdir -p ''' + workspace + '''/slave-reports-''' + moduleCfg.moduleName + '''
+                                if [ -d "output/reports/''' + moduleCfg.reportFolder + '''" ]; then
+                                    cp -r output/reports/''' + moduleCfg.reportFolder + '''/* ''' + workspace + '''/slave-reports-''' + moduleCfg.moduleName + '''/ || true
                                 fi
                             '''
                             
@@ -142,7 +152,12 @@ node('master') {
                 }
             }
             
-            // Execute all tests in parallel
+            if (parallelJobs.isEmpty()) {
+                echo 'No active modules configured in MasterConfig.xlsx. Skipping test execution.'
+                return
+            }
+            
+            // Execute all active modules in parallel
             parallel parallelJobs
         }
 
@@ -226,7 +241,14 @@ EOF
                     returnStdout: true
                 ).trim()
                 
-                def emailBody = buildEmailBody()
+                // Fetch active modules for email body
+                def metadataJson = sh(
+                    script: "python3 ${WORKSPACE}/scripts/get_active_modules_with_metadata.py ${WORKSPACE}/Input/MasterConfig.xlsx",
+                    returnStdout: true
+                ).trim()
+                def modules = readJSON text: metadataJson
+                
+                def emailBody = buildEmailBody(modules)
                 
                 def ccList = params.MAIL_CC ?: ''
                 def bccList = params.MAIL_BCC ?: ''
@@ -307,7 +329,9 @@ EOF
     }
 }
 
-def buildEmailBody() {
+def buildEmailBody(modules) {
+    def testList = modules.collect { m -> "<li>✅ ${m.displayName}</li>" }.join('\n')
+    
     def content = """
     <html>
     <head>
@@ -362,22 +386,25 @@ def buildEmailBody() {
                     <td>Browser</td>
                     <td>${params.BROWSER}</td>
                 </tr>
+                <tr>
+                    <td>Active Modules</td>
+                    <td>${modules.collect { it.displayName }.join(', ')}</td>
+                </tr>
             </table>
             
-            <h3>Test Summary</h3>
+            <h3>Test Summary (${modules.size()} Module${modules.size() > 1 ? 's' : ''})</h3>
             <ul>
-                <li>✅ API Tests</li>
-                <li>✅ Login Tests</li>
-                <li>✅ Search Tests</li>
+                ${testList}
             </ul>
             
             <p>
-                    <a href="${env.BUILD_URL}artifact/output/reports/" class="button">View Module Reports</a>
+                <a href="${env.BUILD_URL}artifact/output/reports/" class="button">View Module Reports</a>
             </p>
             
             <div class="footer">
                 <p>This is an automated email generated by Jenkins. Please do not reply.</p>
                 <p>Timestamp: ${new Date()}</p>
+                <p>Pipeline: Dynamic Module Execution (from MasterConfig.xlsx)</p>
             </div>
         </div>
     </body>

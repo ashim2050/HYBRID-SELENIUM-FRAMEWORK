@@ -165,13 +165,11 @@ pipeline {
                     }
 
                     sh '''
-                        rm -rf ${WORKSPACE}/output/reports/api ${WORKSPACE}/output/reports/login ${WORKSPACE}/output/reports/search || true
-                        mkdir -p ${WORKSPACE}/output/reports/api ${WORKSPACE}/output/reports/login ${WORKSPACE}/output/reports/search
-                        cp -r branch-output/output/reports/api/* ${WORKSPACE}/output/reports/api/ 2>/dev/null || true
-                        cp -r branch-output/output/reports/login/* ${WORKSPACE}/output/reports/login/ 2>/dev/null || true
-                        cp -r branch-output/output/reports/search/* ${WORKSPACE}/output/reports/search/ 2>/dev/null || true
+                        rm -rf ${WORKSPACE}/output/reports/* || true
+                        mkdir -p ${WORKSPACE}/output/reports
+                        cp -r branch-output/output/reports/* ${WORKSPACE}/output/reports/ 2>/dev/null || true
                         echo "Test reports collected successfully"
-                        ls -la ${WORKSPACE}/output/reports/api ${WORKSPACE}/output/reports/login ${WORKSPACE}/output/reports/search || true
+                        find ${WORKSPACE}/output/reports -mindepth 1 -maxdepth 2 -type f | sort || true
                     '''
                 }
             }
@@ -188,10 +186,7 @@ pipeline {
                     // Verify attachments exist
                     sh '''
                     echo "Verifying attachments exist:"
-                    find ${WORKSPACE}/output/reports -name "*.html" -print || echo "No report HTML files found"
-                    ls -lh ${WORKSPACE}/output/reports/api/*.html 2>/dev/null || echo "API reports not found"
-                    ls -lh ${WORKSPACE}/output/reports/login/*.html 2>/dev/null || echo "Login reports not found"
-                    ls -lh ${WORKSPACE}/output/reports/search/*.html 2>/dev/null || echo "Search reports not found"
+                    find ${WORKSPACE}/output/reports -name "*.html" -type f | sort || echo "No report HTML files found"
                     '''
 
                     def parallelSummary = fileExists('parallel-results.txt') ? readFile('parallel-results.txt').trim() : 'Parallel stage summary not available.'

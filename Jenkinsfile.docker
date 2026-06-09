@@ -21,11 +21,6 @@ pipeline {
             defaultValue: true,
             description: 'Send email with reports'
         )
-        choice(
-            name: 'PARALLEL_CONTAINERS',
-            choices: ['3', '4', '6'],
-            description: 'Number of parallel Docker containers'
-        )
         booleanParam(
             name: 'BUILD_DOCKER_IMAGE',
             defaultValue: false,
@@ -45,16 +40,25 @@ pipeline {
         stage('Initialize') {
             steps {
                 script {
+                    def activeModuleNames = sh(script: "python3 ${WORKSPACE}/scripts/get_active_modules.py ${WORKSPACE}/Input/MasterConfig.xlsx", returnStdout: true)
+                        .trim()
+                        .tokenize('\n')
+                        .collect { it.toLowerCase().replaceAll(/\s+/, '') }
+                        .findAll { it }
+
+                    env.PARALLEL_CONTAINERS = activeModuleNames.size().toString()
+                    env.ACTIVE_MODULE_NAMES = activeModuleNames.join(',')
+
                     echo """
                     ╔════════════════════════════════════════════════════════════╗
                     ║   ${PROJECT_NAME} - Docker Pipeline Started              ║
                     ║   Build: #${BUILD_NUMBER}                                 ║
-                    ║   Parallel Containers: ${params.PARALLEL_CONTAINERS}      ║
+                    ║   Parallel Containers: ${env.PARALLEL_CONTAINERS}      ║
                     ╚════════════════════════════════════════════════════════════╝
                     """
                     
                     currentBuild.description = """
-                    Docker Containers: ${params.PARALLEL_CONTAINERS}
+                    Docker Containers: ${env.PARALLEL_CONTAINERS}
                     Build Docker Image: ${params.BUILD_DOCKER_IMAGE}
                     """
                 }
@@ -377,7 +381,7 @@ def buildEmailContent(buildStatus) {
                 </tr>
                 <tr>
                     <td>Parallel Containers</td>
-                    <td>${params.PARALLEL_CONTAINERS}</td>
+                    <td>${env.PARALLEL_CONTAINERS}</td>
                 </tr>
             </table>
             
